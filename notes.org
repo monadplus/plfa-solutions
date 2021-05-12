@@ -1,0 +1,6 @@
+* Tips
+** If you don't know how to input a character
+
+Under the character =M-x describe-char= or =M-x quail-show-key=
+
+Otherwise =agda-input-show-translations=.
