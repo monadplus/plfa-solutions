@@ -208,6 +208,10 @@ infixl 7  _*_
 {-# BUILTIN NATTIMES _*_ #-}
 {-# BUILTIN NATMINUS _∸_ #-}
 
+
+--------------------------------------------
+-- Exercises
+
 data Bin : Set where
   ⟨⟩ : Bin
   _O : Bin → Bin
