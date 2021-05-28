@@ -3,7 +3,7 @@ module plfa.part1.Relations where
 import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl; cong)
 open import Data.Nat using (ℕ; zero; suc; _+_; _*_)
-open import Data.Nat.Properties using (+-comm; +-identityʳ; *-comm)
+open import Data.Nat.Properties using (+-comm; +-identityʳ; *-comm; +-suc)
 
 data _≤_ : ℕ → ℕ → Set where
 
@@ -21,6 +21,7 @@ infix 4 _≤_
 {-
   z≤n -----
       0 ≤ 2
+
  s≤s -------
       1 ≤ 3
 s≤s ---------
@@ -242,19 +243,19 @@ data Total′ : ℕ → ℕ → Set where
   → m + p ≤ n + p
 +-monoˡ-≤ m n p m≤n  rewrite +-comm m p | +-comm n p  = +-monoʳ-≤ p m n m≤n
 
-+-mono-≤ : ∀ (m n p q : ℕ)
++-mono-≤ : ∀ {m n p q : ℕ}
   → m ≤ n
   → p ≤ q
     -------------
   → m + p ≤ n + q
-+-mono-≤ m n p q m≤n p≤q = ≤-trans (+-monoˡ-≤ m n p m≤n) (+-monoʳ-≤ n p q p≤q)
++-mono-≤ {m} {n} {p} {q} m≤n p≤q = ≤-trans (+-monoˡ-≤ m n p m≤n) (+-monoʳ-≤ n p q p≤q)
 
 *-monoʳ-≤ : ∀ (n p q : ℕ)
   → p ≤ q
     -------------
   → n * p ≤ n * q
 *-monoʳ-≤ zero p q p≤q = z≤n
-*-monoʳ-≤ (suc n) p q p≤q = +-mono-≤ p q (n * p) (n * q) p≤q (*-monoʳ-≤ n p q p≤q)
+*-monoʳ-≤ (suc n) p q p≤q = +-mono-≤ p≤q (*-monoʳ-≤ n p q p≤q)
 
 *-monoˡ-≤ : ∀ (m n p : ℕ)
   → m ≤ n
@@ -262,12 +263,12 @@ data Total′ : ℕ → ℕ → Set where
   → m * p ≤ n * p
 *-monoˡ-≤ m n p m≤n rewrite *-comm m p | *-comm n p = *-monoʳ-≤ p m n m≤n
 
-*-mono-≤ : ∀ (m n p q : ℕ)
+*-mono-≤ : ∀ {m n p q : ℕ}
   → m ≤ n
   → p ≤ q
     -------------
   → m * p ≤ n * q
-*-mono-≤ m n p q m≤n p≤q = ≤-trans (*-monoˡ-≤ m n p m≤n) (*-monoʳ-≤ n p q p≤q)
+*-mono-≤ {m} {n} {p} {q} m≤n p≤q = ≤-trans (*-monoˡ-≤ m n p m≤n) (*-monoʳ-≤ n p q p≤q)
 
 --------------------------------------
 -- Strict inequality
@@ -385,3 +386,178 @@ data Trichotomy (m n : ℕ) : Set where
 --------------------------------------
 -- Even and odd
 
+-- Mutually recursive datatype
+
+-- Agda requires identifiers defined before being used.
+
+-- Overloeaded constructors: same constructor for different types.
+
+data even : ℕ → Set
+data odd  : ℕ → Set
+
+data even where
+
+  zero :
+      ---------
+      even zero
+
+  suc  : ∀ {n : ℕ}
+    → odd n
+      ------------
+    → even (suc n)
+
+data odd where
+
+  suc  : ∀ {n : ℕ}
+    → even n
+      -----------
+    → odd (suc n)
+
+e+e≡e : ∀ {m n : ℕ}
+  → even m
+  → even n
+    ------------
+  → even (m + n)
+
+o+e≡o : ∀ {m n : ℕ}
+  → odd m
+  → even n
+    -----------
+  → odd (m + n)
+
+e+o≡o : ∀ {m n : ℕ}
+  → even m
+  → odd n
+    -----------
+  → odd (m + n)
+
+e+e≡e zero     en  =  en
+e+e≡e (suc om) en  =  suc (o+e≡o om en)
+
+o+e≡o (suc em) en  =  suc (e+e≡e em en)
+
+e+o≡o {m} {suc n} em (suc en) rewrite +-suc m n = suc (e+e≡e em en)
+
+o+o≡e : ∀ {m n : ℕ}
+  → odd m
+  → odd n
+  → even (m + n)
+o+o≡e (suc em) on = suc (e+o≡o em on)
+
+o+o≡e' : ∀ {m n : ℕ}
+  → odd m
+  → odd n
+  → even (m + n)
+o+o≡e' {suc m} {n} (suc em) on rewrite +-comm m n = suc (o+e≡o on em)
+
+
+--------------------------------------
+-- Bin
+
+data Bin : Set where
+  ∘ : Bin
+  _O : Bin → Bin
+  _I : Bin → Bin
+
+-- Leading one.
+data One : Bin → Set where
+
+  one :
+      ---------
+      One (∘ I)
+
+  suc₀ : ∀ {b : Bin}
+    → One b
+      ---------
+    → One (b O)
+
+  suc₁ : ∀ {b : Bin}
+    → One b
+      ---------
+    → One (b I)
+
+-- Canonical bitstring: leading one or single zero.
+
+data Can : Bin → Set where
+
+  zero :
+      ---------
+      Can (∘ O)
+
+  leading-one : ∀ {b : Bin}
+    → One b
+      -----
+    → Can b
+
+inc : Bin → Bin
+inc ∘ = ∘ I
+inc (b O) = b I
+inc (b I) = inc b O
+
+-- Show that increment preserves canonical bitstrings:
+
+inc-can-one : ∀ {b : Bin}
+  → One b
+    -----------
+  → One (inc b)
+inc-can-one one = suc₀ one
+inc-can-one (suc₀ b) = suc₁ b
+inc-can-one (suc₁ b) = suc₀ (inc-can-one b)
+
+inc-can : ∀ {b : Bin}
+  → Can b
+    -----------
+  → Can (inc b)
+inc-can zero = leading-one one
+inc-can (leading-one one-p) = leading-one (inc-can-one one-p)
+
+to : ℕ → Bin
+to zero = ∘ O
+to (suc n) = inc (to n)
+
+-- Show that converting a natural to a bitstring always yields a canonical bitstring:
+
+to-can : ∀ (n : ℕ)
+  ------------
+  → Can (to n)
+to-can zero = zero
+to-can (suc n) = inc-can (to-can n)
+
+-- Show that converting a canonical bitstring to a natural and back is the identity
+
+from : Bin → ℕ
+from ∘ = zero
+from (n O) = from n * 2
+from (n I) = (from n * 2) + 1
+
+one-≤-from : ∀ {b : Bin}
+  → One b
+    -----
+  → 1 ≤ from b
+one-≤-from one = s≤s z≤n
+one-≤-from (suc₀ one-b) = *-mono-≤ (one-≤-from one-b) (s≤s z≤n)
+one-≤-from (suc₁ one-b) = +-mono-≤ (*-mono-≤ (one-≤-from one-b) (s≤s z≤n)) z≤n
+
+from-to-one : ∀ {b : Bin}
+  → One b
+    ---------------
+  → to (from b) ≡ b
+from-to-one one = refl
+from-to-one (suc₀ one-b) = {!!}
+-- Goal: to (from b * 2) ≡ (b O)
+from-to-one (suc₁ one-b) = {!!}
+-- Goal: to (from b * 2 + 1) ≡ (b I)
+
+from-to-can : ∀ {b : Bin}
+  → Can b
+    ---------------
+  → to (from b) ≡ b
+from-to-can zero = refl
+from-to-can (leading-one x) = from-to-one x
+
+--------------------------------------
+-- Standard Library
+
+-- import Data.Nat using (_≤_; z≤n; s≤s)
+-- import Data.Nat.Properties using (≤-refl; ≤-trans; ≤-antisym; ≤-total;
+--                                   +-monoʳ-≤; +-monoˡ-≤; +-mono-≤)
