@@ -174,8 +174,8 @@ _ =
 --
 -- Examples:
 -- suc m + n ≡ (suc m) + n
--- n + m * n to ≡ n + (m * n)
--- m + n + p to ≡ (m + n) + p (Associates to the left )
+-- n + m * n ≡ n + (m * n)
+-- m + n + p ≡ (m + n) + p (Associates to the left)
 
 -- higher precedence applied earlier.
 
@@ -223,7 +223,7 @@ _ = ⟨⟩ I O I I -- not unique
 inc : Bin → Bin
 inc ⟨⟩ = ⟨⟩ I
 inc (b O) = b I
-inc (b I) = inc b O
+inc (b I) = (inc b) O
 
 _ : inc (⟨⟩ O) ≡ ⟨⟩ I
 _ = refl

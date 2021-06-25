@@ -316,11 +316,11 @@ from (n I) = (from n * 2) + 1
 
 inc-suc : ∀ (b : Bin) → from (inc b) ≡ suc (from b)
 inc-suc ⟨⟩ = refl
-inc-suc (b O)
-  rewrite +-suc (from b * 2) zero
+inc-suc (b O) rewrite
+    +-suc (from b * 2) zero
   | +-identityʳ (from b * 2) = refl
-inc-suc (b I)
-  rewrite inc-suc b
+inc-suc (b I) rewrite
+    inc-suc b
   | sym (+-identityʳ (from b * 2))
   | sym (+-suc (from b * 2) zero)
   | +-identityʳ (from b * 2) = refl
@@ -339,8 +339,8 @@ Counterexample:
 
 to-from-identity : ∀ (n : ℕ) → from (to n) ≡ n
 to-from-identity zero = refl
-to-from-identity (suc n)
-  rewrite inc-suc (to n)
+to-from-identity (suc n) rewrite
+    inc-suc (to n)
   | to-from-identity n = refl
 
 -- Standard Library

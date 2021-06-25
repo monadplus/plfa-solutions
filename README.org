@@ -1,4 +1,4 @@
-* PLFA
+
 
 ** Part 1: Logical Foundations
 
