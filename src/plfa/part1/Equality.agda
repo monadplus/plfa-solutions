@@ -338,3 +338,213 @@ even-comm : ∀ (m n : ℕ)
     ------------
   → even (n + m)
 even-comm m n ev rewrite +-comm n m  =  ev
+
+-----------------------------------------------------
+-- Multiple rewrites
+
+-- rewriting automatically takes congruence into account.
+
++-comm′ : ∀ (m n : ℕ) → m + n ≡ n + m
++-comm′ zero    n  rewrite +-identity n             = refl
++-comm′ (suc m) n  rewrite +-comm′ m n  | +-suc n m = refl
+
+-- Although proofs with rewriting are shorter, proofs as chains of equalities are
+-- easier to follow, and we will stick with the latter when feasible.
+
+-----------------------------------------------------
+-- Rewriting expanded
+
+--  The rewrite notation is in fact shorthand for an appropriate use of with abstraction:
+
+even-comm′ : ∀ (m n : ℕ)
+  → even (m + n)
+    ------------
+  → even (n + m)
+even-comm′ m n ev with   m + n  | +-comm m n
+...                  | .(n + m) | refl       = ev
+
+-- m + n is matched against .(n + m)
+-- +-comm m n is matched against refl
+
+-- Here the first column asserts that m + n and n + m are identical,
+-- and the second column justifies that assertion with evidence of the appropriate equality.
+--
+-- Note also the use of the dot pattern, .(n + m)
+-- A dot pattern consists of a dot followed by an expression, and
+-- is used when other information forces the value matched to be equal
+-- to the value of the expression in the dot pattern.
+--
+-- In this case, the identification of m + n and n + m is justified by the subsequent
+-- matching of +-comm m n against refl.
+--
+-- One might think that the first clause is redundant as the information is inherent in the second clause,
+-- but in fact Agda is rather picky on this point: omitting the first clause or
+-- reversing the order of the clauses will cause Agda to report an error. (Try it and see!)
+
+--  In this case, we can avoid rewrite by simply applying the substitution function defined earlier:
+
+even-comm″ : ∀ (m n : ℕ)
+  → even (m + n)
+    ------------
+  → even (n + m)
+even-comm″ m n  =  subst even (+-comm m n)
+-- subst : ∀ {A : Set} {x y : A} (P : A → Set)
+--   → x ≡ y
+--     ---------
+--   → P x → P y
+-- subst P refl px = px
+
+----------------------------------------------------
+-- Leibniz equality
+
+
+-- The form of asserting equality that we have used is due to Martin Löf, and was published in 1975.
+-- An older form is due to Leibniz, and was published in 1686.
+--
+-- Leibniz asserted the identity of indiscernibles:
+--   two objects are equal if and only if they satisfy the same properties.
+
+-- Here we define Leibniz equality, and show that
+--   two terms satisfy Leibniz equality if and only if they satisfy Martin Löf equality.
+
+-- Leibniz equality is usually formalised to state that
+--   x ≐ y holds if every property P that holds of x also holds of y.
+--
+-- Perhaps surprisingly, this definition is sufficient to also ensure the converse,
+-- that every property P that holds of y also holds of x.
+
+-- Let x and y be objects of type A.
+-- We say that x ≐ y holds if for every predicate P over type A we have that P x implies P y:
+
+_≐_ : ∀ {A : Set} (x y : A) → Set₁
+_≐_ {A} x y = ∀ (P : A → Set) → P x → P y
+
+-- This is our first use of **levels**.
+-- We cannot assign Set the type Set, since this would lead to contradictions such as Russell’s Paradox and Girard’s Paradox.
+--
+-- Instead, there is a hierarchy of types, where Set : Set₁, Set₁ : Set₂, and so on.
+--
+-- In fact, Set itself is just an abbreviation for Set₀.
+--
+-- Since the equation defining _≐_ mentions Set on the right-hand side,
+-- the corresponding signature must use Set₁. We say a bit more about levels below.
+
+-- Leibniz equality is reflexive and transitive,
+-- where the first follows by a variant of the identity function
+-- and the second by a variant of function composition:
+
+refl-≐ : ∀ {A : Set} {x : A}
+  → x ≐ x
+refl-≐ P Px  =  Px
+
+trans-≐ : ∀ {A : Set} {x y z : A}
+  → x ≐ y
+  → y ≐ z
+    -----
+  → x ≐ z
+trans-≐ x≐y y≐z P Px  =  y≐z P (x≐y P Px)
+
+-- We have to show that if P x implies P y for all predicates P, then the implication holds the other way round as well:
+
+-- Given x ≐ y, a specific P, we have to construct a proof that P y implies P x.
+-- To do so, we instantiate the equality with a predicate Q such that Q z holds
+-- if P z implies P x. The property Q x is trivial by reflexivity, and
+-- hence Q y follows from x ≐ y. But Q y is exactly a proof of what we require,
+-- that P y implies P x.
+
+sym-≐ : ∀ {A : Set} {x y : A}
+  → x ≐ y
+     -----
+  → y ≐ x
+sym-≐ {A} {x} {y} x≐y P  =  Qy
+  where
+    Q : A -> Set
+    Q z = P z -> P x
+    Qx : Q x
+    Qx = refl-≐ P
+    Qy : Q y
+    Qy = x≐y Q Qx
+
+--  We now show that Martin Löf equality implies Leibniz equality, and vice versa.
+--  In the forward direction, if we know x ≡ y we need for any P to take evidence of P x to evidence of P y,
+--  which is easy since equality of x and y implies that any proof of P x is also a proof of P y:
+
+≡-implies-≐ : ∀ {A : Set} {x y : A}
+  → x ≡ y
+     -----
+  → x ≐ y
+≡-implies-≐ x≡y P  =  subst P x≡y
+
+-- In the reverse direction, given that for any P we can take a proof of P x to a proof of P y we need to show x ≡ y:
+--
+-- The proof is similar to that for symmetry of Leibniz equality.
+-- We take Q to be the predicate that holds of z if x ≡ z. Then Q x is trivial by reflexivity of Martin Löf equality, and hence Q y follows from x ≐ y. But Q y is exactly a proof of what we require, that x ≡ y.
+
+≐-implies-≡ : ∀ {A : Set} {x y : A}
+  → x ≐ y
+     -----
+  → x ≡ y
+≐-implies-≡ {A} {x} {y} x≐y  =  Qy
+  where
+    Q : A → Set
+    Q z = x ≡ z
+    Qx : Q x
+    Qx = refl
+    Qy : Q y
+    Qy = x≐y Q Qx
+
+-------------------------------------------------------------
+-- Universe polymorphism
+
+-- The definition of equality given above is fine if we want to compare two values of a type that belongs to Set,
+-- but what if we want to compare two values of a type that belongs to Set ℓ for some arbitrary level ℓ?
+--
+-- The answer is **universe polymorphism**, where a definition is made with respect to an arbitrary level ℓ.
+-- To make use of levels, we first import the following:
+
+open import Level using (Level; _⊔_) renaming (zero to lzero; suc to lsuc)
+
+-- We rename constructors zero and suc to lzero and lsuc to avoid confusion between levels and naturals.
+
+-- Levels are isomorphic to natural numbers, and have similar constructors:
+
+-- lzero : Level
+-- lsuc  : Level → Level
+
+-- _⊔_ : Level → Level → Level
+-- Given two levels returns the larger of the two.
+
+data _≡′_ {ℓ : Level} {A : Set ℓ} (x : A) : A → Set ℓ where
+  refl′ : x ≡′ x
+
+-- For simplicity, we avoid universe polymorphism in the definitions given in the text,
+-- but most definitions in the standard library, including those for equality,
+-- are generalised to arbitrary levels as above.
+
+--  Here is the generalised definition of Leibniz equality:
+
+
+_≐′_ : ∀ {ℓ : Level} {A : Set ℓ} (x y : A) → Set (lsuc ℓ)
+_≐′_ {ℓ} {A} x y = ∀ (P : A → Set ℓ) → P x -> P y
+
+-- Most other functions in the standard library are also generalised to arbitrary levels.
+-- For instance, here is the definition of composition.
+
+_∘_ : ∀ {ℓ₁ ℓ₂ ℓ₃ : Level} {A : Set ℓ₁} {B : Set ℓ₂} {C : Set ℓ₃}
+  → (B → C) → (A → B) → A → C
+(g ∘ f) x  =  g (f x)
+
+-- More info at https://agda.readthedocs.io/en/v2.6.1/language/universe-levels.html
+
+----------------------------------------------------------------------------------
+-- Standard library
+
+-- Definitions similar to those in this chapter can be found in the standard library.
+-- The Agda standard library defines _≡⟨_⟩_ as step-≡, which reverses the order of the arguments.
+--
+-- The standard library also defines a syntax macro, which is automatically imported whenever you import step-≡,
+-- which recovers the original argument order:
+
+import Relation.Binary.PropositionalEquality as Eq
+open Eq using (_≡_; refl; trans; sym; cong; cong-app; subst)
+open Eq.≡-Reasoning using (begin_; _≡⟨⟩_; step-≡; _∎)
