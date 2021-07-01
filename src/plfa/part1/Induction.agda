@@ -337,11 +337,11 @@ Counterexample:
 -}
 
 
-to-from-identity : ∀ (n : ℕ) → from (to n) ≡ n
-to-from-identity zero = refl
-to-from-identity (suc n) rewrite
+from∘to : ∀ (n : ℕ) → from (to n) ≡ n
+from∘to zero = refl
+from∘to (suc n) rewrite
     inc-suc (to n)
-  | to-from-identity n = refl
+  | from∘to n = refl
 
 -- Standard Library
 import Data.Nat.Properties using (+-assoc; +-identityʳ; +-suc; +-comm)
