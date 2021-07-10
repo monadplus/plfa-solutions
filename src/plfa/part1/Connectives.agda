@@ -342,3 +342,64 @@ uniq-⊎ h (inj₂ y) = refl
                  ; (inj₂ (inj₂ c)) → refl
                  }
     }
+
+--------------------------------------------------------
+-- False is empty
+
+data ⊥ : Set where
+
+-- There is no possible evidence that ⊥ holds.
+
+-- Dual to ⊤, for ⊥ there is no introduction rule but an elimination rule.
+-- Since false never holds, knowing that it holds tells us we are in a paradoxical situation.
+--
+-- Given evidence that ⊥ holds, we might conclude anything! This is a basic principle of logic,
+-- known in medieval times by the Latin phrase ex falso, and known to children through phrases
+-- such as “if pigs had wings, then I’d be the Queen of Sheba”. We formalise it as follows:
+
+-- The nullary case of case-⊎ is ⊥-elim:
+
+⊥-elim : ∀ {A : Set}
+  → ⊥
+    --
+  → A
+⊥-elim ()
+
+-- This is our first use of the absurd pattern ().
+-- Here since ⊥ is a type with no members, we indicate that
+-- it is never possible to match against a value of this type by using the pattern ().
+
+-- The nullary case of uniq-⊎ is uniq-⊥,
+-- which asserts that ⊥-elim is equal to any arbitrary function from ⊥:
+
+uniq-⊥ : ∀ {C : Set} (h : ⊥ → C) (w : ⊥) → ⊥-elim w ≡ h w
+uniq-⊥ h ()
+-- Using the absurd pattern asserts there are no possible values for w, so the equation holds trivially.
+
+-- We refer to ⊥ as the empty type. And, indeed, type ⊥ has no members.
+-- For example, the following function enumerates all possible arguments of type ⊥:
+
+⊥-count : ⊥ → ℕ
+⊥-count ()
+
+-- For numbers, zero is the identity of addition.
+-- Correspondingly, empty is the identity of sums up to isomorphism.
+
+⊥-identityˡ : ∀ {A : Set} → ⊥ ⊎ A ≃ A
+⊥-identityˡ =
+  record
+    { to = λ{ (inj₁ ()); (inj₂ a) → a }
+    ; from = λ{ a → inj₂ a }
+    ; from∘to = λ{ (inj₁ ()); (inj₂ a) → refl }
+    ; to∘from = λ{ a → refl }
+    }
+
+⊥-identityʳ : ∀ {A : Set} → A ⊎ ⊥ ≃ A
+⊥-identityʳ {A} =
+  ≃-begin
+    (A ⊎ ⊥)
+  ≃⟨ ⊎-comm ⟩
+    (⊥ ⊎ A)
+  ≃⟨ ⊥-identityˡ {A} ⟩
+    A
+  ≃-∎
