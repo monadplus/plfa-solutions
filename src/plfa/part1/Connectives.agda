@@ -543,3 +543,97 @@ we have the isomorphism:
 
 -- Products distribute over sum, up to isomorphism.
 -- The code to validate this fact is similar in structure to our previous results:
+
+×-distrib-⊎ : ∀ {A B C : Set} → (A ⊎ B) × C ≃ (A × C) ⊎ (B × C)
+×-distrib-⊎ =
+  record
+    { to      = λ{ ⟨ inj₁ x , z ⟩ → (inj₁ ⟨ x , z ⟩)
+                 ; ⟨ inj₂ y , z ⟩ → (inj₂ ⟨ y , z ⟩)
+                 }
+    ; from    = λ{ (inj₁ ⟨ x , z ⟩) → ⟨ inj₁ x , z ⟩
+                 ; (inj₂ ⟨ y , z ⟩) → ⟨ inj₂ y , z ⟩
+                 }
+    ; from∘to = λ{ ⟨ inj₁ x , z ⟩ → refl
+                 ; ⟨ inj₂ y , z ⟩ → refl
+                 }
+    ; to∘from = λ{ (inj₁ ⟨ x , z ⟩) → refl
+                 ; (inj₂ ⟨ y , z ⟩) → refl
+                 }
+    }
+
+-- Sums do not distribute over products up to isomorphism, but it is an embedding:
+
+-- We have an embedding rather than an isomorphism because
+-- the `from` function must discard either z or z′ in this case.
+⊎-distrib-× : ∀ {A B C : Set} → (A × B) ⊎ C ≲ (A ⊎ C) × (B ⊎ C)
+⊎-distrib-× =
+  record
+    { to      = λ{ (inj₁ ⟨ x , y ⟩) → ⟨ inj₁ x , inj₁ y ⟩
+                 ; (inj₂ z)         → ⟨ inj₂ z , inj₂ z ⟩
+                 }
+    ; from    = λ{ ⟨ inj₁ x , inj₁ y ⟩ → (inj₁ ⟨ x , y ⟩)
+                 ; ⟨ inj₁ x , inj₂ z ⟩ → (inj₂ z)
+                 ; ⟨ inj₂ z , _      ⟩ → (inj₂ z)
+                 }
+    ; from∘to = λ{ (inj₁ ⟨ x , y ⟩) → refl
+                 ; (inj₂ z)         → refl
+                 }
+    }
+
+{-
+
+In the usual approach to logic, both of the distribution laws are given
+as equivalences, where each side implies the other:
+
+  A × (B ⊎ C) ⇔ (A × B) ⊎ (A × C)
+  A ⊎ (B × C) ⇔ (A ⊎ B) × (A ⊎ C)
+
+But when we consider the functions that provide evidence for these implications,
+then the first corresponds to an isomorphism while the second only corresponds
+to an embedding, revealing a sense in which one of these laws is
+“more true” than the other.
+-}
+
+-- Show that the following property holds:
+
+⊎-weak-× : ∀ {A B C : Set} → (A ⊎ B) × C → A ⊎ (B × C)
+⊎-weak-× ⟨ inj₁ a , _ ⟩ = inj₁ a
+⊎-weak-× ⟨ inj₂ b , c ⟩ = inj₂ ⟨ b , c ⟩
+-- This is called a weak distributive law.
+
+--  Show that a disjunct of conjuncts implies a conjunct of disjuncts:
+
+⊎×-implies-×⊎ : ∀ {A B C D : Set} → (A × B) ⊎ (C × D) → (A ⊎ C) × (B ⊎ D)
+⊎×-implies-×⊎ (inj₁ ⟨ a , b ⟩) = ⟨ inj₁ a , inj₁ b ⟩
+⊎×-implies-×⊎ (inj₂ ⟨ c , d ⟩) = ⟨ inj₂ c ,  inj₂ d ⟩
+
+-- Does the converse hold? If so, prove; if not, give a counterexample.
+
+-- ×⊎-implies-⊎× : ∀ {A B C D : Set} → (A ⊎ C) × (B ⊎ D) → (A × B) ⊎ (C × D)
+-- ×⊎-implies-⊎× (⟨ inj₁ a , inj₁ b ⟩) = inj₁ ⟨ a , b ⟩
+-- ×⊎-implies-⊎× (⟨ inj₁ a , inj₂ d ⟩) = ???
+
+-- It is easy to see that if A holds and C holds
+-- does not imply that A×B holds or C×D holds.
+
+-------------------------------------------
+-- Standard library
+
+import Data.Product using (_×_; proj₁; proj₂) renaming (_,_ to ⟨_,_⟩)
+import Data.Unit using (⊤; tt)
+import Data.Sum using (_⊎_; inj₁; inj₂) renaming ([_,_] to case-⊎)
+import Data.Empty using (⊥; ⊥-elim)
+import Function.Equivalence using (_⇔_)
+
+-- The standard library constructs pairs with _,_ whereas we use ⟨_,_⟩.
+--
+-- The former makes it convenient to build triples or larger tuples from pairs,
+-- permitting a , b , c to stand for (a , (b , c)).
+--
+-- But it conflicts with other useful notations,
+-- such as [_,_] to construct a list of two elements in Chapter Lists
+-- and Γ , A to extend environments in Chapter DeBruijn.
+--
+-- The standard library _⇔_ is similar to ours, but
+-- the one in the standard library is less convenient,
+-- since it is parameterised with respect to an arbitrary notion of equivalence.
