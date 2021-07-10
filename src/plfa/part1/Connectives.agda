@@ -403,3 +403,143 @@ uniq-⊥ h ()
   ≃⟨ ⊥-identityˡ {A} ⟩
     A
   ≃-∎
+------------------------------------------
+-- Implication is function
+
+{-
+Given two propositions A and B, the implication A → B holds
+if whenever A holds then B must also hold.
+
+We formalise implication using the function type,
+which has appeared throughout this book.
+
+Evidence that A → B holds is of the form:
+
+  λ (x : A) → N
+
+where N is a term of type B containing as a free variable x of type A.
+
+Given a term L providing evidence that A → B holds, and a term M providing evidence
+that A holds, the term L M provides evidence that B holds.
+
+In other words, evidence that A → B holds is a function that converts
+evidence that A holds into evidence that B holds.
+-}
+
+→-elim : ∀ {A B : Set}
+  → (A → B)
+  → A
+    -------
+  → B
+→-elim L M = L M
+
+{-
+In medieval times, this rule was known by the name modus ponens.
+It corresponds to function application.
+
+Defining a function, with a named definition or a lambda abstraction,
+is referred to as introducing a function, while applying a function
+is referred to as eliminating the function.
+
+Elimination followed by introduction is the identity:
+-}
+
+η-→ : ∀ {A B : Set} (f : A → B) → (λ (x : A) → f x) ≡ f
+η-→ f = refl
+
+{-
+Implication binds less tightly than any other operator.
+Thus, A ⊎ B → B ⊎ A parses as (A ⊎ B) → (B ⊎ A).
+
+Given two types A and B, we refer to A → B as the function space from A to B.
+It is also sometimes called the exponential, with B raised to the A power.
+Among other reasons for calling it the exponential, note that
+if type A has m distinct members, and type B has n distinct members,
+then the type A → B has nᵐ distinct members.
+
+λ{true → aa; false → aa}  λ{true → aa; false → bb}  λ{true → aa; false → cc}
+λ{true → bb; false → aa}  λ{true → bb; false → bb}  λ{true → bb; false → cc}
+λ{true → cc; false → aa}  λ{true → cc; false → bb}  λ{true → cc; false → cc}
+
+For example, the following function enumerates all possible arguments of the type Bool → Tri:
+-}
+
+→-count : (Bool → Tri) → ℕ
+→-count f with f true | f false
+...          | aa     | aa      =   1
+...          | aa     | bb      =   2
+...          | aa     | cc      =   3
+...          | bb     | aa      =   4
+...          | bb     | bb      =   5
+...          | bb     | cc      =   6
+...          | cc     | aa      =   7
+...          | cc     | bb      =   8
+...          | cc     | cc      =   9
+
+{-
+Corresponding to the law
+
+  (p ^ n) ^ m  ≡  p ^ (n * m)
+
+we have the isomorphism
+
+  A → (B → C)  ≃  (A × B) → C
+
+Both types can be viewed as functions that given evidence
+that A holds and evidence that B holds can return evidence that C holds.
+
+This isomorphism sometimes goes by the name currying. The proof of the right inverse requires extensionality:
+-}
+
+currying : ∀ {A B C : Set} → (A → B → C) ≃ (A × B → C)
+currying =
+  record
+    { to      =  λ{ f → λ{ ⟨ x , y ⟩ → f x y }}
+    ; from    =  λ{ g → λ{ x → λ{ y → g ⟨ x , y ⟩ }}}
+    ; from∘to =  λ{ f → refl }
+    ; to∘from =  λ{ g → extensionality λ{ ⟨ x , y ⟩ → refl }}
+    }
+
+{-
+Corresponding to the law
+
+  p ^ (n + m) = (p ^ n) * (p ^ m)
+
+we have the isomorphism:
+
+  (A ⊎ B) → C  ≃  (A → C) × (B → C)
+-}
+
+→-distrib-⊎ : ∀ {A B C : Set} → (A ⊎ B → C) ≃ ((A → C) × (B → C))
+→-distrib-⊎ =
+  record
+    { to      = λ{ f → ⟨ f ∘ inj₁ , f ∘ inj₂ ⟩ }
+    ; from    = λ{ ⟨ g , h ⟩ → λ{ (inj₁ x) → g x ; (inj₂ y) → h y } }
+    ; from∘to = λ{ f → extensionality λ{ (inj₁ x) → refl ; (inj₂ y) → refl } }
+    ; to∘from = λ{ ⟨ g , h ⟩ → refl }
+    }
+
+{-
+Corresponding to the law
+
+  (p * n) ^ m = (p ^ m) * (n ^ m)
+
+we have the isomorphism:
+
+  A → B × C  ≃  (A → B) × (A → C)
+-}
+
+→-distrib-× : ∀ {A B C : Set} → (A → B × C) ≃ (A → B) × (A → C)
+→-distrib-× =
+  record
+    { to      = λ{ f → ⟨ proj₁ ∘ f , proj₂ ∘ f ⟩ }
+    ; from    = λ{ ⟨ g , h ⟩ → λ x → ⟨ g x , h x ⟩ }
+    ; from∘to = λ{ f → extensionality λ{ x → η-× (f x) } }
+    ; to∘from = λ{ ⟨ g , h ⟩ → refl }
+    }
+
+-------------------------------------------------
+-- Distribution
+
+-- Products distribute over sum, up to isomorphism.
+-- The code to validate this fact is similar in structure to our previous results:
