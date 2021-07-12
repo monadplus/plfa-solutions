@@ -1,3 +1,4 @@
+{-# OPTIONS --allow-unsolved-metas #-}
 module plfa.part1.Relations where
 
 import Relation.Binary.PropositionalEquality as Eq
