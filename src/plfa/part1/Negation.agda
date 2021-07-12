@@ -4,7 +4,7 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong)
 open import Data.Nat using (ℕ; zero; suc; _∸_)
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
-open import Data.Product using (_×_ ; _,_)
+open import Data.Product using (_×_ ; _,_ ; proj₁ ; proj₂)
 open import plfa.part1.Isomorphism using (_≃_; extensionality)
 open import plfa.part1.Relations using (_<_)
 
@@ -185,3 +185,123 @@ open _⇔_
 
 --------------------------------------------------
 -- Intuitive and Classical logic
+
+{-
+
+Logic comes in many varieties, and one distinction is between *classical* and *intuitionistic*.
+
+Intuitionists, concerned by assumptions made by some logicians about the nature of infinity,
+insist upon a constructionist notion of truth.
+
+In particular, they insist that a proof of A ⊎ B must show which of A or B holds
+
+Intuitionists also reject the law of the excluded middle,
+which asserts A ⊎ ¬ A for every A, since the law gives no clue as to which of A or ¬ A holds.
+
+Heyting formalised a variant of Hilbert’s classical logic that captures the intuitionistic notion of provability.
+In particular, the law of the excluded middle is provable in Hilbert’s logic, but not in Heyting’s.
+
+Further, if the law of the excluded middle is added as an axiom to Heyting’s logic,
+then it becomes equivalent to Hilbert’s.
+
+Kolmogorov showed the two logics were closely related: he gave a double-negation translation, such that
+a formula is provable in classical logic if and only if its translation is provable in intuitionistic logic.
+
+Propositions as Types was first formulated for intuitionistic logic.
+It is a perfect fit, because in the intuitionist interpretation the
+formula A ⊎ B is provable exactly when one exhibits either a proof of A or a proof of B,
+so the type corresponding to disjunction is a disjoint sum.
+
+(Parts of the above are adopted from “Propositions as Types”, Philip Wadler, Communications of the ACM, December 2015.)
+-}
+
+-------------------------------------------------
+-- Exlucded middle is irrefutable
+
+--  The law of the excluded middle can be formulated as follows:
+
+postulate
+  em : ∀ {A : Set} → A ⊎ ¬ A
+
+-- As we noted, the law of the excluded middle does not hold in intuitionistic logic.
+--
+-- However, we can show that it is irrefutable, meaning that the negation of its negation is provable
+-- (and hence that its negation is never provable):
+
+em-irrefutable : ∀ {A : Set} → ¬ ¬ (A ⊎ ¬ A)
+em-irrefutable k = k (inj₂ λ{ x → k (inj₁ x) })
+
+---------------------------------------------
+-- Exercise Classical (stretch)
+
+{-
+Consider the following principles:
+
+    Excluded Middle: A ⊎ ¬ A, for all A
+    Double Negation Elimination: ¬ ¬ A → A, for all A
+    Peirce’s Law: ((A → B) → A) → A, for all A and B.
+    Implication as disjunction: (A → B) → ¬ A ⊎ B, for all A and B.
+    De Morgan: ¬ (¬ A × ¬ B) → A ⊎ B, for all A and B.
+
+Show that each of these implies all the others.
+-}
+
+em→¬¬ : ∀ {A : Set}
+  → (A ⊎ ¬ A)
+     ------------
+  → (¬ ¬ A → A)
+em→¬¬ (inj₁ A) _ = A
+em→¬¬ (inj₂ ¬A) ¬¬A = ⊥-elim (¬¬A ¬A)
+
+em→Peirce : ∀ {A B : Set}
+  → (A ⊎ ¬ A)
+     ----------------------
+  → (((A → B) → A) → A)
+em→Peirce (inj₁ A) f = A
+em→Peirce (inj₂ ¬A) f = f (λ A → ⊥-elim (¬A A))
+
+em→→⊎ : ∀ {A B : Set}
+  → (A ⊎ ¬ A)
+     ---------------------
+  → ((A → B) → ¬ A ⊎ B)
+em→→⊎ (inj₁ A) f = inj₂ (f A)
+em→→⊎ (inj₂ ¬A) _ = inj₁ ¬A
+
+-- em→deMorgan :
+--   (∀ {A : Set} → (A ⊎ ¬ A))
+--   -------------------------------------------------
+--   → (∀ {A' B : Set} → (¬ (¬ A' × ¬ B) → A' ⊎ B))
+-- em→deMorgan f {A'} {B} with f {A'}
+-- ... | (inj₁ A) = λ _ → inj₁ A
+-- ... | (inj₂ ¬A) = λ neg-¬A×¬B → inj₂ (⊥-elim (neg-¬A×¬B (¬A , ¬A)))
+
+¬¬→deMorgan :
+     (∀ {A : Set} → (¬ ¬ A → A))
+     ------------------------
+  → (∀ {A' B : Set} → ¬ (¬ A' × ¬ B) → A' ⊎ B)
+¬¬→deMorgan ¬¬A→A ¬⟨¬A,¬B⟩ =
+  ¬¬A→A (λ ¬-A⊎B → ¬⟨¬A,¬B⟩ ((λ A → ¬-A⊎B (inj₁ A)) , λ B → ¬-A⊎B (inj₂ B)))
+-- the key here is to instantiate the A=A⊎B in ¬¬A→A.
+
+Stable : Set → Set
+Stable A = ¬ ¬ A → A
+
+-- Show that any negated formula is stable:
+neg-stable : ∀ {A : Set}
+     ------------
+  → Stable (¬ A)
+neg-stable ¬¬¬A = ¬¬¬-elim ¬¬¬A
+
+-- Show that the conjunction of two stable formulas is stable:
+×-stable : ∀ {A B : Set}
+  → Stable A
+  → Stable B
+  → Stable (A × B)
+×-stable stableA stableB ¬-A×B =
+  ( stableA (λ ¬A → ¬-A×B (λ A×B → ¬A (proj₁ A×B))) , stableB (λ ¬B → ¬-A×B (λ A×B → ¬B (proj₂ A×B))))
+
+--------------------------------------------------------
+-- Standard Prelude
+
+import Relation.Nullary using (¬_)
+import Relation.Nullary.Negation using (contraposition)

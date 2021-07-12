@@ -336,7 +336,6 @@ Counterexample:
   to (from ⟨⟩ 0 1 0 1) ≡ ⟨⟩ 1 0 1
 -}
 
-
 from∘to : ∀ (n : ℕ) → from (to n) ≡ n
 from∘to zero = refl
 from∘to (suc n) rewrite
