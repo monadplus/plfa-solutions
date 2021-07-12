@@ -32,14 +32,16 @@ infix 3 ¬_ -- ¬ A × ¬ B parses as (¬ A) × (¬ B) and ¬ m ≡ n as ¬ (m �
 -- Note that this rule is just a special case of →-elim.
 
 -- In classical logic, we have that A is equivalent to ¬ ¬ A.
-
--- As we discuss below, in Agda we use intuitionistic logic,
+--
+-- As we discuss below, in Agda we use *intuitionistic logic*,
 -- where we have only half of this equivalence, namely that A implies ¬ ¬ A:
+
 ¬¬-intro : ∀ {A : Set}
   → A
     -----
   → ¬ ¬ A
 ¬¬-intro x  =  λ{¬x → ¬x x}
+-- We show that assuming ¬ A leads to a contradiction, and hence ¬ ¬ A must hold
 
 -- An equivalent way to write the above is as follows:
 
@@ -48,3 +50,5 @@ infix 3 ¬_ -- ¬ A × ¬ B parses as (¬ A) × (¬ B) and ¬ m ≡ n as ¬ (m �
     -----
   → ¬ ¬ A
 ¬¬-intro′ x ¬x = ¬x x
+
+--  We cannot show that ¬ ¬ A implies A, but we can show that ¬ ¬ ¬ A implies ¬ A:
