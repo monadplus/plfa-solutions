@@ -4,7 +4,7 @@ module plfa.part1.Quantifiers where
 
 import Relation.Binary.PropositionalEquality as Eq
 open Eq using (_≡_; refl)
-open import Data.Nat using (ℕ; zero; suc; _+_; _*_)
+open import Data.Nat using (ℕ; zero; suc; _+_; _*_; _≤_)
 open import Relation.Nullary using (¬_)
 open import Data.Product using (_×_; proj₁; proj₂) renaming (_,_ to ⟨_,_⟩)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
@@ -258,3 +258,68 @@ syntax ∃-syntax (λ x → B) = ∃[ x ] B
 
 -------------------------------------------------------
 -- An existential example
+
+data even : ℕ → Set
+data odd  : ℕ → Set
+
+data even where
+
+  even-zero : even zero
+
+  even-suc : ∀ {n : ℕ}
+    → odd n
+      ------------
+    → even (suc n)
+
+data odd where
+  odd-suc : ∀ {n : ℕ}
+    → even n
+      -----------
+    → odd (suc n)
+
+-- This completes the proof in the forward direction.
+
+even-∃ : ∀ {n : ℕ} → even n → ∃[ m ] (    m * 2 ≡ n)
+odd-∃  : ∀ {n : ℕ} →  odd n → ∃[ m ] (1 + m * 2 ≡ n)
+
+even-∃ even-zero                       =  ⟨ zero , refl ⟩
+even-∃ (even-suc o) with odd-∃ o
+...                    | ⟨ m , refl ⟩  =  ⟨ suc m , refl ⟩
+
+odd-∃  (odd-suc e)  with even-∃ e
+...                    | ⟨ m , refl ⟩  =  ⟨ m , refl ⟩
+
+-- Here is the proof in the reverse direction:
+
+∃-even : ∀ {n : ℕ} → ∃[ m ] (    m * 2 ≡ n) → even n
+∃-odd  : ∀ {n : ℕ} → ∃[ m ] (1 + m * 2 ≡ n) →  odd n
+
+∃-even ⟨  zero , refl ⟩  =  even-zero
+∃-even ⟨ suc m , refl ⟩  =  even-suc (∃-odd ⟨ m , refl ⟩)
+
+∃-odd  ⟨     m , refl ⟩  =  odd-suc (∃-even ⟨ m , refl ⟩)
+
+-- Show that y ≤ z holds if and only if there exists a x such that x + y ≡ z.
+
+open import plfa.part1.Equality using (≡-implies-≤; +-monoˡ-≤)
+open import plfa.part1.Induction using (+-rearrange; +-comm; +-suc; +-identityʳ; +-assoc)
+open _≤_
+
+postulate
+  ≡-suc : ∀ {x y : ℕ}
+    → suc x ≡ suc y
+       -------------
+    → x ≡ y
+
+-- ∃→≤ : ∀ {y z : ℕ}
+--   → ∃[ x ] (x + y ≡ z)
+--      ------------------
+--   → y ≤ z
+-- ∃→≤ ⟨ zero , y≡z ⟩ = ≡-implies-≤ y≡z
+-- ∃→≤ {y} {suc z'} ⟨ suc x , x+y≡z ⟩ = ∃→≤ ⟨ x , {!!} ⟩
+
+-- ≤→∃ : ∀ {y z : ℕ}
+--   → y ≤ z
+--      ------------------
+--   → ∃[ x ] (x + y ≡ z)
+-- ≤→∃ = ?

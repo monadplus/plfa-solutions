@@ -1,15 +1,19 @@
 module plfa.part1.Equality where
 
+import Relation.Binary.PropositionalEquality as Eq
+open Eq using (_≡_; refl)
+open import Data.Nat using (ℕ; zero; suc; _+_; _*_; _≤_)
+
 -- The definition features an asymmetry, in that the first argument to _≡_ is given by the parameter x : A,
 -- while the second is given by an index in A → Set. This follows our policy of using parameters wherever possible.
 --
 -- The first argument to _≡_ can be a parameter because it doesn’t vary, while the second must be an index,
 -- so it can be required to be equal to the first.
 
-data _≡_ {A : Set} (x : A) : A → Set where
-  refl : x ≡ x
+-- data _≡_ {A : Set} (x : A) : A → Set where
+--   refl : x ≡ x
 
-infix 4 _≡_
+-- infix 4 _≡_
 
 --------------------------------------
 -- Equality is an equivalence relation
@@ -142,13 +146,13 @@ trans′ {A} {x} {y} {z} x≡y y≡z =
 ----------------------------------------------
 -- Chains of equations, another example
 
-data ℕ : Set where
-  zero : ℕ
-  suc  : ℕ → ℕ
+-- data ℕ : Set where
+--   zero : ℕ
+--   suc  : ℕ → ℕ
 
-_+_ : ℕ → ℕ → ℕ
-zero    + n  =  n
-(suc m) + n  =  suc (m + n)
+-- _+_ : ℕ → ℕ → ℕ
+-- zero    + n  =  n
+-- (suc m) + n  =  suc (m + n)
 
 -- Postulates must be used with caution.
 -- If we postulate something false then we could use Agda to prove anything whatsoever.
@@ -188,17 +192,19 @@ postulate
 -----------------------------------------------------------
 -- Exercise ≤-Reasoning (stretch)
 
-data _≤_ : ℕ → ℕ → Set where
+-- data _≤_ : ℕ → ℕ → Set where
 
-  z≤n : ∀ {n : ℕ}
-      --------
-    → zero ≤ n
+--   z≤n : ∀ {n : ℕ}
+--       --------
+--     → zero ≤ n
 
-  s≤s : ∀ {m n : ℕ}
-    → m ≤ n
-      -------------
-    → suc m ≤ suc n
-infix 4 _≤_
+--   s≤s : ∀ {m n : ℕ}
+--     → m ≤ n
+--       -------------
+--     → suc m ≤ suc n
+-- infix 4 _≤_
+
+open _≤_
 
 postulate
   ≤-refl : ∀ {n : ℕ}
@@ -331,7 +337,7 @@ data odd where
 -- Agda includes special notation to support just this kind of reasoning, the rewrite notation we encountered earlier.
 -- To enable this notation, we use pragmas to tell Agda which type corresponds to equality:
 
-{-# BUILTIN EQUALITY _≡_ #-}
+-- {-# BUILTIN EQUALITY _≡_ #-}
 
 even-comm : ∀ (m n : ℕ)
   → even (m + n)
