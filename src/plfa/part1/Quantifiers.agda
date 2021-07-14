@@ -130,14 +130,14 @@ postulate
 
 -- We formalise existential quantification by declaring a suitable inductive type:
 
-data Σ (A : Set) (B : A → Set) : Set where
-  ⟨_,_⟩ : (x : A) → B x → Σ A B
+-- data Σ (A : Set) (B : A → Set) : Set where
+--   ⟨_,_⟩ : (x : A) → B x → Σ A B
 
 -- We define a convenient syntax for existentials as follows:
 
-Σ-syntax = Σ
-infix 2 Σ-syntax
-syntax Σ-syntax A (λ x → B) = Σ[ x ∈ A ] B
+-- Σ-syntax = Σ
+-- infix 2 Σ-syntax
+-- syntax Σ-syntax A (λ x → B) = Σ[ x ∈ A ] B
 
 -- This is our first use of a syntax declaration, which specifies that the term on the left
 -- may be written with the syntax on the right.
@@ -147,10 +147,16 @@ syntax Σ-syntax A (λ x → B) = Σ[ x ∈ A ] B
 -- Evidence that Σ[ x ∈ A ] B x holds is of the form ⟨ M , N ⟩ where M is a term of type A, and N is evidence that B M holds.
 
 -- Equivalently, we could also declare existentials as a record type:
-record Σ′ (A : Set) (B : A → Set) : Set where
+record Σ (A : Set) (B : A → Set) : Set where
+  constructor ⟨_,_⟩
   field
     proj₁′ : A
     proj₂′ : B proj₁′
+open Σ
+
+Σ-syntax = Σ
+infix 2 Σ-syntax
+syntax Σ-syntax A (λ x → B) = Σ[ x ∈ A ] B
 
 {- Example:
 
@@ -245,7 +251,6 @@ syntax ∃-syntax (λ x → B) = ∃[ x ] B
 -- Does the converse hold? If so, prove; if not, explain why.
 -- You cannot guarantee that x₁ and x₂ in (∃[ x₁ ] B x₁) × (∃[ x₂ ] C x₂) are the same.
 
--- Let Tri and B be as in Exercise ∀-×. Show that ∃[ x ] B x is isomorphic to B aa ⊎ B bb ⊎ B cc.
 ∃-⊎ : ∀ {B : Tri → Set} →
   (∃[ x ] B x) ≃ (B aa ⊎ B bb ⊎ B cc)
 ∃-⊎ =
@@ -301,25 +306,111 @@ odd-∃  (odd-suc e)  with even-∃ e
 
 -- Show that y ≤ z holds if and only if there exists a x such that x + y ≡ z.
 
-open import plfa.part1.Equality using (≡-implies-≤; +-monoˡ-≤)
+open import plfa.part1.Equality using (sym ; cong; ≡-implies-≤; +-monoˡ-≤)
 open import plfa.part1.Induction using (+-rearrange; +-comm; +-suc; +-identityʳ; +-assoc)
 open _≤_
 
 postulate
-  ≡-suc : ∀ {x y : ℕ}
-    → suc x ≡ suc y
+  ≤-suc : ∀ {x y z : ℕ}
+    → x ≤ y
        -------------
-    → x ≡ y
+    → x ≤ y + z
 
--- ∃→≤ : ∀ {y z : ℕ}
---   → ∃[ x ] (x + y ≡ z)
---      ------------------
---   → y ≤ z
--- ∃→≤ ⟨ zero , y≡z ⟩ = ≡-implies-≤ y≡z
--- ∃→≤ {y} {suc z'} ⟨ suc x , x+y≡z ⟩ = ∃→≤ ⟨ x , {!!} ⟩
+∃→≤ : ∀ {y z : ℕ}
+  → ∃[ x ] (x + y ≡ z)
+     ------------------
+  → y ≤ z
+∃→≤ ⟨ zero , y≡z ⟩ = ≡-implies-≤ y≡z
+∃→≤ {y} {suc z'} ⟨ suc x , refl ⟩ = +-monoˡ-≤ 0 (suc x) y z≤n
 
--- ≤→∃ : ∀ {y z : ℕ}
---   → y ≤ z
---      ------------------
---   → ∃[ x ] (x + y ≡ z)
--- ≤→∃ = ?
+≤→∃ : ∀ {y z : ℕ}
+  → y ≤ z
+     ------------------
+  → ∃[ x ] (x + y ≡ z)
+≤→∃ {zero} {z} z≤n = ⟨ z , +-identityʳ z ⟩
+≤→∃ (s≤s y≤z) with ≤→∃ y≤z
+... | ⟨ x , x+y≡z ⟩ = ⟨ x , suc-≡ʳ x+y≡z ⟩
+  where
+    suc-≡ʳ : ∀ {x y z : ℕ}
+      → x + y ≡ z
+        ------------------
+      → x + suc y ≡ suc z
+    suc-≡ʳ {zero} y≡z = cong suc y≡z
+    suc-≡ʳ {suc x} {y} suc-xy≡z rewrite +-suc x y = cong suc suc-xy≡z
+
+-------------------------------------------
+-- Existentials, Universals, and Negation
+
+-- Negation of an existential is isomorphic to the universal of a negation.
+-- Considering that existentials are generalised disjunction and universals are generalised conjunction,
+-- this result is analogous to the one which tells us that negation of a disjunction is
+-- isomorphic to a conjunction of negations:
+
+¬∃≃∀¬ : ∀ {A : Set} {B : A → Set}
+  → (¬ ∃[ x ] B x) ≃ ∀ x → ¬ B x
+¬∃≃∀¬ =
+  record
+    { to      =  λ{ ¬∃xy x y → ¬∃xy ⟨ x , y ⟩ }
+    ; from    =  λ{ ∀¬xy ⟨ x , y ⟩ → ∀¬xy x y }
+    ; from∘to =  λ{ ¬∃xy → extensionality λ{ ⟨ x , y ⟩ → refl } }
+    ; to∘from =  λ{ ∀¬xy → refl }
+    }
+
+----------------------------------------------
+-- Exercises
+
+∃¬-implies-¬∀ : ∀ {A : Set} {B : A → Set}
+  → ∃[ x ] (¬ B x)
+    --------------
+  → ¬ (∀ x → B x)
+∃¬-implies-¬∀ ⟨ x , ¬Bx ⟩ ∀x→Bx = ¬Bx (∀x→Bx x)
+
+-- Does the converse hold? If so, prove; if not, explain why.
+
+-- In order to solve this problem you would need to pattern match on ⊥ but that is not possible.
+--
+-- ¬∀-implies-∃¬ : ∀ {A : Set} {B : A → Set}
+--   → ¬ (∀ x → B x)
+--     --------------
+--   → ∃[ x ] (¬ B x)
+-- ¬∀-implies-∃¬  ¬∀x→Bx = ⟨ {!!} , (λ{x → ¬∀x→Bx {!!} }) ⟩
+
+open import plfa.part1.Relations using (Bin ; One ; Can ; to ; from ; inc-can ; to-can ; from-to-can)
+
+postulate
+  from∘to : ∀ (n : ℕ) → from (to n) ≡ n
+
+open Bin
+open One
+open Can
+
+≡One : ∀{b : Bin} (o o' : One b) → o ≡ o'
+≡One one one = refl
+≡One (suc₀ o) (suc₀ o') = cong suc₀ (≡One o o')
+≡One (suc₁ o) (suc₁ o') = cong suc₁ (≡One o o')
+
+≡Can : ∀{b : Bin} (cb : Can b) (cb' : Can b) → cb ≡ cb'
+≡Can zero zero = refl
+≡Can zero (leading-one (suc₀ ()))
+≡Can (leading-one (suc₀ ())) zero
+≡Can (leading-one x) (leading-one x₁) = cong leading-one (≡One x x₁)
+
+-- Many of the alternatives for proving to∘from turn out to be tricky.
+-- However, the proof can be straightforward if you use the following lemma, which is a corollary of ≡Can.
+
+proj₁≡→Can≡ : {cb cb′ : ∃[ b ](Can b)} → proj₁′ cb ≡ proj₁′ cb′ → cb ≡ cb′
+proj₁≡→Can≡ {⟨ proj₁′₁ , proj₂′₁ ⟩} {⟨ proj₁′₂ , proj₂′₂ ⟩} refl rewrite ≡Can proj₂′₁ proj₂′₂ = refl
+
+ℕ≃Can : ℕ ≃ ∃[ b ](Can b)
+ℕ≃Can =
+  record
+    { to      = λ{n → ⟨ to n , to-can n ⟩}
+    ; from    = λ{⟨ b , _ ⟩ → from b}
+    ; from∘to = from∘to
+    ; to∘from = λ{⟨ b , canB ⟩ → proj₁≡→Can≡ (from-to-can canB) }
+    }
+
+-------------------------------------------------
+-- Standard library
+
+import Data.Product using (Σ; _,_; ∃; Σ-syntax; ∃-syntax)
