@@ -216,13 +216,13 @@ suc m <? suc n with m <? n
 ... | yes  m<n = yes (s<s m<n)
 ... |  no ¬m<n = no (¬s<s ¬m<n)
 
+open import Data.Nat.Properties using (suc-injective)
+
 ¬z≡s : ∀ {n : ℕ} → ¬ (zero ≡ suc n)
 ¬z≡s ()
 
 ¬s≡z : ∀ {n : ℕ} → ¬ (suc n ≡ zero)
 ¬s≡z ()
-
-open import Data.Nat.Properties using (suc-injective)
 
 ¬s≡s : ∀ {m n : ℕ} → ¬ (m ≡ n) → ¬ (suc m ≡ suc n)
 ¬s≡s ¬m≡n s≡s = ¬m≡n (suc-injective s≡s)
@@ -237,3 +237,238 @@ suc m ≡ℕ? suc n with m ≡ℕ? n
 
 -------------------------------------------------------------
 -- Decidables from booleans, and booleans from decidables
+
+-- Curious readers might wonder if we could reuse the definition of m ≤ᵇ n,
+-- together with the proofs that it is equivalent to m ≤ n, to show decidability.
+--
+-- Indeed, we can do so as follows:
+
+_≤?′_ : ∀ (m n : ℕ) → Dec (m ≤ n)
+m ≤?′ n with m ≤ᵇ n | ≤ᵇ→≤ m n | ≤→≤ᵇ {m} {n}
+...        | true   | p         | _            = yes (p tt)
+...        | false  | _         | ¬p           = no ¬p
+
+{-
+The triple binding of the with clause in this proof is essential. If instead we wrote:
+
+  _≤?″_ : ∀ (m n : ℕ) → Dec (m ≤ n)
+  m ≤?″ n with m ≤ᵇ n
+  ... | true   =  yes (≤ᵇ→≤ m n tt)
+  ... | false  =  no (≤→≤ᵇ {m} {n})
+
+then Agda would make two complaints, one for each clause:
+
+  ⊤ !=< (T (m ≤ᵇ n)) of type Set
+  when checking that the expression tt has type T (m ≤ᵇ n)
+
+  T (m ≤ᵇ n) !=< ⊥ of type Set
+  when checking that the expression ≤→≤ᵇ {m} {n} has type ¬ m ≤ n
+
+Putting the expressions into the with clause permits Agda to exploit the fact
+that T (m ≤ᵇ n) is ⊤ when m ≤ᵇ n is true, and that T (m ≤ᵇ n) is ⊥ when m ≤ᵇ n is false.
+
+However, overall it is simpler to just define _≤?_ directly, as in the previous section.
+If one really wants _≤ᵇ_, then it and its properties are easily derived from _≤?_, as we will now show.
+-}
+
+-- Erasure takes a decidable value to a boolean:
+⌊_⌋ : ∀ {A : Set} → Dec A → Bool
+⌊ yes x ⌋  =  true
+⌊ no ¬x ⌋  =  false
+
+-- Using erasure, we can easily derive _≤ᵇ_ from _≤?_:
+_≤ᵇ′_ : ℕ → ℕ → Bool
+m ≤ᵇ′ n  =  ⌊ m ≤? n ⌋
+
+-- Further, *if D is a value of type Dec A, then T ⌊ D ⌋ is inhabited exactly when A is inhabited*:
+toWitness : ∀ {A : Set} {D : Dec A} → T ⌊ D ⌋ → A
+toWitness {A} {yes x} tt  =  x
+toWitness {A} {no ¬x} ()
+
+fromWitness : ∀ {A : Set} {D : Dec A} → A → T ⌊ D ⌋
+fromWitness {A} {yes x} _  =  tt
+fromWitness {A} {no ¬x} x  =  ¬x x
+
+-- Using these, we can easily derive that T (m ≤ᵇ′ n) is inhabited exactly when m ≤ n is inhabited:
+≤ᵇ′→≤ : ∀ {m n : ℕ} → T (m ≤ᵇ′ n) → m ≤ n
+≤ᵇ′→≤  =  toWitness
+
+≤→≤ᵇ′ : ∀ {m n : ℕ} → m ≤ n → T (m ≤ᵇ′ n)
+≤→≤ᵇ′  =  fromWitness
+
+--- In summary, it is usually best to eschew booleans and rely on decidables.
+--- If you need booleans, they and their properties are easily derived from the corresponding decidables.
+
+--------------------------------------
+-- Logical connectives
+
+infixr 6 _∧_
+
+_∧_ : Bool → Bool → Bool
+true  ∧ true  = true
+false ∧ _     = false
+_     ∧ false = false
+
+-- In Emacs, the left-hand side of the third equation displays in grey,
+-- indicating that the order of the equations determines which of the second or the third can match.
+-- However, regardless of which matches the answer is the same.
+
+-- Correspondingly, given two decidable propositions, we can decide their conjunction:
+_×-dec_ : ∀ {A B : Set} → Dec A → Dec B → Dec (A × B)
+yes x ×-dec yes y = yes ⟨ x , y ⟩
+no ¬x ×-dec _     = no λ{ ⟨ x , y ⟩ → ¬x x }
+_     ×-dec no ¬y = no λ{ ⟨ x , y ⟩ → ¬y y }
+
+-- The disjunction of two booleans is true if either is true, and false if both are false:
+infixr 5 _∨_
+
+_∨_ : Bool → Bool → Bool
+true  ∨ _      = true
+_     ∨ true   = true
+false ∨ false  = false
+
+-- Correspondingly, given two decidable propositions, we can decide their disjunction:
+infixr 5 _⊎-dec_
+
+_⊎-dec_ : ∀ {A B : Set} → Dec A → Dec B → Dec (A ⊎ B)
+yes x ⊎-dec _     = yes (inj₁ x)
+_     ⊎-dec yes y = yes (inj₂ y)
+no ¬x ⊎-dec no ¬y = no λ{ (inj₁ x) → ¬x x ; (inj₂ y) → ¬y y }
+
+-- The negation of a boolean is false if its argument is true, and vice versa:
+not : Bool → Bool
+not true  = false
+not false = true
+
+-- Correspondingly, given a decidable proposition, we can decide its negation:
+¬? : ∀ {A : Set} → Dec A → Dec (¬ A)
+¬? (yes x)  =  no (¬¬-intro x)
+¬? (no ¬x)  =  yes ¬x
+
+-- There is also a slightly less familiar connective, corresponding to implication:
+
+_⊃_ : Bool → Bool → Bool
+_     ⊃ true   =  true
+false ⊃ _      =  true
+true  ⊃ false  =  false
+
+-- Correspondingly, given two decidable propositions, we can decide if the first implies the second:
+_→-dec_ : ∀ {A B : Set} → Dec A → Dec B → Dec (A → B)
+_     →-dec yes y  =  yes (λ _ → y)
+no ¬x →-dec _      =  yes (λ x → ⊥-elim (¬x x))
+yes x →-dec no ¬y  =  no (λ f → ¬y (f x))
+
+------------------------------------------
+-- Exercises
+
+∧-× : ∀ {A B : Set} (x : Dec A) (y : Dec B) → ⌊ x ⌋ ∧ ⌊ y ⌋ ≡ ⌊ x ×-dec y ⌋
+∧-× (yes x) (yes y) = refl
+∧-× (yes x) (no y) = refl
+∧-× (no x) y = refl
+
+∨-⊎ : ∀ {A B : Set} (x : Dec A) (y : Dec B) → ⌊ x ⌋ ∨ ⌊ y ⌋ ≡ ⌊ x ⊎-dec y ⌋
+∨-⊎ (yes x) y = refl
+∨-⊎ (no x) (yes x₁) = refl
+∨-⊎ (no x) (no x₁) = refl
+
+not-¬ : ∀ {A : Set} (x : Dec A) → not ⌊ x ⌋ ≡ ⌊ ¬? x ⌋
+not-¬ (yes x) = refl
+not-¬ (no x) = refl
+
+_iff_ : Bool → Bool → Bool
+true  iff true = true
+false iff true = false
+true  iff false = false
+false iff false = true
+
+-- _iff_ : Bool → Bool → Bool
+-- true  iff b = b
+-- false iff b = not b
+
+open _⇔_
+
+_⇔-dec_ : ∀ {A B : Set} → Dec A → Dec B → Dec (A ⇔ B)
+yes a ⇔-dec yes b = yes record { to = λ _ → b ; from = λ _ → a}
+yes a ⇔-dec no ¬b = no (λ{ A⇔B → ¬b (to A⇔B a)})
+no ¬a ⇔-dec yes b = no (λ{ A⇔B → ¬a (from A⇔B b)})
+no ¬a ⇔-dec no ¬b = yes record { to = λ a → ⊥-elim (¬a a) ; from = λ b → ⊥-elim (¬b b) }
+
+iff-⇔ : ∀ {A B : Set} (x : Dec A) (y : Dec B) → ⌊ x ⌋ iff ⌊ y ⌋ ≡ ⌊ x ⇔-dec y ⌋
+iff-⇔ (yes x) (yes x₁) = refl
+iff-⇔ (yes x) (no x₁) = refl
+iff-⇔ (no x) (yes x₁) = refl
+iff-⇔ (no x) (no x₁) = refl
+
+-----------------------------
+-- Proof by reflection
+
+-- Let’s revisit our definition of monus from Chapter Naturals.
+-- If we subtract a larger number from a smaller number, we take the result to be zero.
+-- We had to do something, after all. What could we have done differently?
+-- We could have defined a guarded version of minus, a function which subtracts n from m only if n ≤ m:
+
+minus : (m n : ℕ) (n≤m : n ≤ m) → ℕ
+minus m       zero    _         = m
+minus (suc m) (suc n) (s≤s n≤m) = minus m n n≤m
+
+-- Unfortunately, it is painful to use, since we have to explicitly provide the proof that n ≤ m:
+
+_ : minus 5 3 (s≤s (s≤s (s≤s z≤n))) ≡ 2
+_ = refl
+
+-- We cannot solve this problem in general, but in the scenario above, we happen to know the two numbers statically.
+-- In that case, we can use a technique called proof by reflection.
+-- Essentially, we can ask Agda to run the decidable equality n ≤? m while type checking, and make sure that n ≤ m!
+
+-- We do this by using a feature of implicits. Agda will fill in an implicit of a record type
+-- if it can fill in all its fields. So Agda will always manage to fill in an implicit of an empty record type,
+-- since there aren’t any fields after all. This is why ⊤ is defined as an empty record.
+
+-- The trick is to have an implicit argument of the type T ⌊ n ≤? m ⌋.
+-- Let’s go through what this means step-by-step. First, we run the decision procedure, n ≤? m.
+-- This provides us with evidence whether n ≤ m holds or not.
+-- We erase the evidence to a boolean. Finally, we apply T.
+-- Recall that T maps booleans into the world of evidence: true becomes the unit type ⊤,
+-- and false becomes the empty type ⊥. Operationally, an implicit argument of this type works as a guard.
+
+--  If n ≤ m holds, the type of the implicit value reduces to ⊤. Agda then happily provides the implicit value.
+--  Otherwise, the type reduces to ⊥, which Agda has no chance of providing, so it will throw an error.
+--  For instance, if we call 3 - 5 we get _n≤m_254 : ⊥.
+
+-- We obtain the witness for n ≤ m using toWitness, which we defined earlier:
+_-_ : (m n : ℕ) {n≤m : T ⌊ n ≤? m ⌋} → ℕ
+_-_ m n {n≤m} = minus m n (toWitness n≤m)
+
+-- We can safely use _-_ as long as we statically know the two numbers:
+_ : 5 - 3 ≡ 2
+_ = refl
+
+-- It turns out that this idiom is very common. The standard library defines a synonym for T ⌊ ? ⌋ called True:
+True : ∀ {Q} → Dec Q → Set
+True Q = T ⌊ Q ⌋
+
+----------------------
+-- Exercise
+
+toWitnessFalse : ∀ {A : Set} {D : Dec (¬ A)} → T ⌊ D ⌋ → ¬ A
+toWitnessFalse {A} {yes ¬A} tt = ¬A
+toWitnessFalse {_} {no _} ()
+
+fromWitnessFalse : ∀ {A : Set} {D : Dec (¬ A)} → ¬ A → T ⌊ D ⌋
+fromWitnessFalse {A} {yes ¬A} _ = tt
+fromWitnessFalse {A} {no ¬¬A} ¬A = ¬¬A ¬A
+
+False : ∀ {Q} → Dec (¬ Q) → Set
+False Q = T (not ⌊ Q ⌋)
+
+-----------------------------------------------------
+-- Standard Library
+
+import Data.Bool.Base using (Bool; true; false; T; _∧_; _∨_; not)
+import Data.Nat using (_≤?_)
+import Relation.Nullary using (Dec; yes; no)
+import Relation.Nullary.Decidable using (⌊_⌋; True; toWitness; fromWitness)
+import Relation.Nullary.Negation using (¬?)
+import Relation.Nullary.Product using (_×-dec_)
+import Relation.Nullary.Sum using (_⊎-dec_)
+import Relation.Binary using (Decidable)
