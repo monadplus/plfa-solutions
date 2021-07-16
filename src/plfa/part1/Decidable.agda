@@ -447,6 +447,9 @@ _ = refl
 True : ∀ {Q} → Dec Q → Set
 True Q = T ⌊ Q ⌋
 
+-- _-′_ : (m n : ℕ) {n≤m : True (n ≤? m)} → ℕ
+-- _-′_ m n {n≤m} = minus m n (toWitness n≤m)
+
 ----------------------
 -- Exercise
 
