@@ -14,7 +14,7 @@ open import Relation.Nullary using (¬_; Dec; yes; no)
 open import Data.Product using (_×_; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
 open import Function using (_∘_)
 open import Level using (Level)
-open import plfa.part1.Isomorphism using (_≃_; _⇔_)
+open import plfa.part1.Isomorphism using (_≃_; _⇔_; extensionality)
 
 ----------------------
 -- Lists
@@ -288,3 +288,130 @@ reverse-involutive (x ∷ xs) =
   ≡⟨⟩
     x ∷ xs
   ∎
+
+---------------------------------
+-- Faster reverse
+
+shunt : ∀ {A : Set} → List A → List A → List A
+shunt []       ys  =  ys
+shunt (x ∷ xs) ys  =  shunt xs (x ∷ ys)
+-- The second argument actually becomes larger,
+-- but this is not a problem because the argument on which we recurse becomes smaller.
+
+shunt-reverse : ∀ {A : Set} (xs ys : List A)
+  → shunt xs ys ≡ reverse xs ++ ys
+shunt-reverse [] ys =
+  begin
+    shunt [] ys
+  ≡⟨⟩
+    ys
+  ≡⟨⟩
+    reverse [] ++ ys
+  ∎
+shunt-reverse (x ∷ xs) ys =
+  begin
+    shunt (x ∷ xs) ys
+  ≡⟨⟩
+    shunt xs (x ∷ ys)
+  ≡⟨ shunt-reverse xs (x ∷ ys) ⟩
+    reverse xs ++ (x ∷ ys)
+  ≡⟨⟩
+    reverse xs ++ ([ x ] ++ ys)
+  ≡⟨ sym (++-assoc (reverse xs) [ x ] ys) ⟩
+    (reverse xs ++ [ x ]) ++ ys
+  ≡⟨⟩
+    reverse (x ∷ xs) ++ ys
+  ∎
+
+-- Generalising on an auxiliary argument, which becomes larger as the argument on which we recurse
+-- or induct becomes smaller, is a common trick. It belongs in your quiver of arrows, ready to slay the right problem.
+
+reverse′ : ∀ {A : Set} → List A → List A
+reverse′ xs = shunt xs []
+
+reverses : ∀ {A : Set} (xs : List A)
+  → reverse′ xs ≡ reverse xs
+reverses xs =
+  begin
+    reverse′ xs
+  ≡⟨⟩
+    shunt xs []
+  ≡⟨ shunt-reverse xs [] ⟩
+    reverse xs ++ []
+  ≡⟨ ++-identityʳ (reverse xs) ⟩
+    reverse xs
+  ∎
+
+_ : reverse′ [ 0 , 1 , 2 ] ≡ [ 2 , 1 , 0 ]
+_ =
+  begin
+    reverse′ (0 ∷ 1 ∷ 2 ∷ [])
+  ≡⟨⟩
+    shunt (0 ∷ 1 ∷ 2 ∷ []) []
+  ≡⟨⟩
+    shunt (1 ∷ 2 ∷ []) (0 ∷ [])
+  ≡⟨⟩
+    shunt (2 ∷ []) (1 ∷ 0 ∷ [])
+  ≡⟨⟩
+    shunt [] (2 ∷ 1 ∷ 0 ∷ [])
+  ≡⟨⟩
+    2 ∷ 1 ∷ 0 ∷ []
+  ∎
+
+-- Now the time to reverse a list is linear in the length of the list.
+
+---------------------------------------------
+-- Map
+
+-- Map is an example of a higher-order function,
+-- one which takes a function as an argument or returns a function as a result:
+
+map : ∀ {A B : Set} → (A → B) → List A → List B
+map f []        =  []
+map f (x ∷ xs)  =  f x ∷ map f xs
+
+_ : map suc [ 0 , 1 , 2 ] ≡ [ 1 , 2 , 3 ]
+_ =
+  begin
+    map suc (0 ∷ 1 ∷ 2 ∷ [])
+  ≡⟨⟩
+    suc 0 ∷ map suc (1 ∷ 2 ∷ [])
+  ≡⟨⟩
+    suc 0 ∷ suc 1 ∷ map suc (2 ∷ [])
+  ≡⟨⟩
+    suc 0 ∷ suc 1 ∷ suc 2 ∷ map suc []
+  ≡⟨⟩
+    suc 0 ∷ suc 1 ∷ suc 2 ∷ []
+  ≡⟨⟩
+    1 ∷ 2 ∷ 3 ∷ []
+  ∎
+
+sucs : List ℕ → List ℕ
+sucs = map suc
+
+_ : sucs [ 0 , 1 , 2 ] ≡ [ 1 , 2 , 3 ]
+_ =
+  begin
+    sucs [ 0 , 1 , 2 ]
+  ≡⟨⟩
+    map suc [ 0 , 1 , 2 ]
+  ≡⟨⟩
+    [ 1 , 2 , 3 ]
+  ∎
+
+-----------------------------
+-- Exercises
+
+map-compose : ∀ {A B C : Set} {f : A → B} {g : B → C}
+  → map (g ∘ f) ≡ map g ∘ map f
+map-compose = extensionality map-compose′
+  where
+    map-compose′ : ∀ {A B C : Set} {f : A → B} {g : B → C} (xs : List A)
+      → map (g ∘ f) xs ≡ (map g ∘ map f) xs
+    map-compose′ [] = refl
+    map-compose′ {A} {B} {C} {f} {g} (x ∷ xs) rewrite map-compose′ {A} {B} {C} {f} {g} xs = refl
+
+map-++-distribute : ∀ {A B : Set} {f : A → B} (xs ys : List A)
+  → map f (xs ++ ys) ≡ map f xs ++ map f ys
+map-++-distribute [] ys = refl
+map-++-distribute (x ∷ xs) ys = {!!}
