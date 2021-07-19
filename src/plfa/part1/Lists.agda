@@ -411,7 +411,22 @@ map-compose = extensionality map-compose′
     map-compose′ [] = refl
     map-compose′ {A} {B} {C} {f} {g} (x ∷ xs) rewrite map-compose′ {A} {B} {C} {f} {g} xs = refl
 
-map-++-distribute : ∀ {A B : Set} {f : A → B} (xs ys : List A)
+map-++-distribute : ∀ {A B : Set} (f : A → B) (xs ys : List A)
   → map f (xs ++ ys) ≡ map f xs ++ map f ys
-map-++-distribute [] ys = refl
-map-++-distribute (x ∷ xs) ys = {!!}
+map-++-distribute _ [] ys = refl
+map-++-distribute f (x ∷ xs) ys =
+  begin
+    map f ((x ∷ xs) ++ ys)
+  ≡⟨⟩
+    map f (x ∷ (xs ++ ys))
+  ≡⟨⟩
+    f x ∷ map f (xs ++ ys)
+  ≡⟨ cong ((f x) ∷_) (map-++-distribute f xs ys) ⟩
+    f x ∷ map f xs ++ map f ys
+  ≡⟨⟩
+    map f (x ∷ xs) ++ map f ys
+  ∎
+
+data Tree (A B : Set) : Set where
+  leaf : A → Tree A B
+  node : Tree A B → B → Tree A B → Tree A B
