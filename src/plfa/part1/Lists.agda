@@ -571,3 +571,197 @@ _ = refl
 
 ------------------------------------
 -- Monoids
+
+record IsMonoid {A : Set} (_⊗_ : A → A → A) (e : A) : Set where
+  field
+    assoc : ∀ (x y z : A) → (x ⊗ y) ⊗ z ≡ x ⊗ (y ⊗ z)
+    identityˡ : ∀ (x : A) → e ⊗ x ≡ x
+    identityʳ : ∀ (x : A) → x ⊗ e ≡ x
+
+open IsMonoid
+
++-monoid : IsMonoid _+_ 0
++-monoid =
+  record
+    { assoc = +-assoc
+    ; identityˡ = +-identityˡ
+    ; identityʳ = +-identityʳ
+    }
+
+*-monoid : IsMonoid _*_ 1
+*-monoid =
+  record
+    { assoc = *-assoc
+    ; identityˡ = *-identityˡ
+    ; identityʳ = *-identityʳ
+    }
+
+++-monoid : ∀ {A : Set} → IsMonoid {List A} _++_ []
+++-monoid =
+  record
+    { assoc = ++-assoc
+    ; identityˡ = ++-identityˡ
+    ; identityʳ = ++-identityʳ
+    }
+
+foldr-monoid : ∀ {A : Set} (_⊗_ : A → A → A) (e : A) → IsMonoid _⊗_ e →
+  ∀ (xs : List A) (y : A) → foldr _⊗_ y xs ≡ foldr _⊗_ e xs ⊗ y
+foldr-monoid _⊗_ e ⊗-monoid [] y =
+  begin
+    foldr _⊗_ y []
+  ≡⟨⟩
+    y
+  ≡⟨ sym (identityˡ ⊗-monoid y) ⟩
+    (e ⊗ y)
+  ≡⟨⟩
+    foldr _⊗_ e [] ⊗ y
+  ∎
+foldr-monoid _⊗_ e ⊗-monoid (x ∷ xs) y =
+  begin
+    foldr _⊗_ y (x ∷ xs)
+  ≡⟨⟩
+    x ⊗ (foldr _⊗_ y xs)
+  ≡⟨ cong (x ⊗_) (foldr-monoid _⊗_ e ⊗-monoid xs y) ⟩
+    x ⊗ (foldr _⊗_ e xs ⊗ y)
+  ≡⟨ sym (assoc ⊗-monoid x (foldr _⊗_ e xs) y) ⟩
+    (x ⊗ foldr _⊗_ e xs) ⊗ y
+  ≡⟨⟩
+    foldr _⊗_ e (x ∷ xs) ⊗ y
+  ∎
+
+
+-- postulate
+--   foldr-++ : ∀ {A : Set} (_⊗_ : A → A → A) (e : A) (xs ys : List A) →
+--     foldr _⊗_ e (xs ++ ys) ≡ foldr _⊗_ (foldr _⊗_ e ys) xs
+
+foldr-monoid-++ : ∀ {A : Set} (_⊗_ : A → A → A) (e : A) → IsMonoid _⊗_ e →
+  ∀ (xs ys : List A) → foldr _⊗_ e (xs ++ ys) ≡ foldr _⊗_ e xs ⊗ foldr _⊗_ e ys
+foldr-monoid-++ _⊗_ e monoid-⊗ xs ys =
+  begin
+    foldr _⊗_ e (xs ++ ys)
+  ≡⟨ foldr-++ _⊗_ e xs ys ⟩
+    foldr _⊗_ (foldr _⊗_ e ys) xs
+  ≡⟨ foldr-monoid _⊗_ e monoid-⊗ xs (foldr _⊗_ e ys) ⟩
+    foldr _⊗_ e xs ⊗ foldr _⊗_ e ys
+  ∎
+
+--------------------
+-- Exercises
+
+-- foldr _⊗_ e [ x , y , z ]  =  x ⊗ (y ⊗ (z ⊗ e))
+-- foldl _⊗_ e [ x , y , z ]  =  ((e ⊗ x) ⊗ y) ⊗ z
+
+foldl : ∀ {A B : Set} → (B → A → B) → B → List A → B
+foldl _⊗_ e [] = e
+foldl _⊗_ e (x ∷ xs) = foldl _⊗_ (e ⊗ x) xs
+
+foldl-monoid : ∀ {A : Set} (_⊗_ : A → A → A) (e : A)
+  → IsMonoid _⊗_ e
+  → ∀ (xs : List A) (y : A) → y ⊗ foldl _⊗_ e xs ≡ foldl _⊗_ y xs
+foldl-monoid _⊗_ e monoid-⊗ [] y rewrite identityʳ monoid-⊗ y = refl
+foldl-monoid _⊗_ e monoid-⊗ (x ∷ xs) y =
+  begin
+    y ⊗ foldl _⊗_ e (x ∷ xs)
+  ≡⟨⟩
+    y ⊗ foldl _⊗_ (e ⊗ x) xs
+  ≡⟨ cong (λ σ → y ⊗ foldl _⊗_ σ xs ) (identityˡ monoid-⊗ x) ⟩
+    y ⊗ foldl _⊗_ x xs
+  ≡⟨ cong (y ⊗_) (sym (foldl-monoid _⊗_ e monoid-⊗ xs x)) ⟩
+    y ⊗ (x ⊗ foldl _⊗_ e xs)
+  ≡⟨⟩
+    y ⊗ (x ⊗ foldl _⊗_ e xs)
+  ≡⟨ sym (assoc monoid-⊗ y x (foldl _⊗_ e xs)) ⟩
+    (y ⊗ x) ⊗ foldl _⊗_ e xs
+  ≡⟨ foldl-monoid _⊗_ e monoid-⊗ xs (y ⊗ x) ⟩
+    foldl _⊗_ (y ⊗ x) xs
+  ≡⟨⟩
+    foldl _⊗_ y (x ∷ xs)
+  ∎
+
+foldr-monoid-foldl : ∀ {A : Set} (_⊗_ : A → A → A) (e : A)
+  → IsMonoid _⊗_ e
+  → ∀ (xs : List A) → foldr _⊗_ e xs ≡ foldl _⊗_ e xs
+foldr-monoid-foldl _⊗_ e monoid-⊗ [] = refl
+foldr-monoid-foldl _⊗_ e monoid-⊗ (x ∷ xs) =
+  begin
+    foldr _⊗_ e (x ∷ xs)
+  ≡⟨⟩
+    x ⊗ foldr _⊗_ e xs
+  ≡⟨ cong (x ⊗_) (foldr-monoid-foldl _⊗_ e monoid-⊗ xs) ⟩
+    x ⊗ (foldl _⊗_ e xs)
+  ≡⟨ foldl-monoid _⊗_ e monoid-⊗ xs x ⟩
+    foldl _⊗_ x xs
+  ≡⟨ cong (λ e₁ → foldl _⊗_ e₁ xs) (sym (identityˡ monoid-⊗ x)) ⟩
+    foldl _⊗_ (e ⊗ x) xs
+  ≡⟨⟩
+    foldl _⊗_ e (x ∷ xs)
+  ∎
+
+--------------------------------------------------
+-- All
+
+-- Predicate All P holds if predicate P is satisfied by every element of a list:
+
+data All {A : Set} (P : A → Set) : List A → Set where
+  []  : All P []
+  _∷_ : ∀ {x : A} {xs : List A} → P x → All P xs → All P (x ∷ xs)
+
+-- Agda uses types to disambiguate whether the constructor is building a list or evidence that All P holds.
+
+_ : All (_≤ 2) [ 0 , 1 , 2 ]
+_ = z≤n ∷ s≤s z≤n ∷ s≤s (s≤s z≤n) ∷ []
+
+-- Here _∷_ and [] are the constructors of All P rather than of List A.
+
+-- One might wonder whether a pattern such as [_,_,_] can be used to construct values of type All as well as type List,
+-- since both use the same constructors. Indeed it can, so long as both types are in scope when the pattern is declared.
+
+----------------------------------------------
+-- Any
+
+-- Predicate Any P holds if predicate P is satisfied by some element of a list:
+
+data Any {A : Set} (P : A → Set) : List A → Set where
+  here  : ∀ {x : A} {xs : List A} → P x → Any P (x ∷ xs)
+  there : ∀ {x : A} {xs : List A} → Any P xs → Any P (x ∷ xs)
+
+-- For example, we can define list membership as follows:
+
+infix 4 _∈_ _∉_
+
+_∈_ : ∀ {A : Set} (x : A) (xs : List A) → Set
+x ∈ xs = Any (x ≡_) xs
+
+_∉_ : ∀ {A : Set} (x : A) (xs : List A) → Set
+x ∉ xs = ¬ (x ∈ xs)
+
+_ : 0 ∈ [ 0 , 1 , 0 , 2 ]
+_ = here refl
+
+_ : 0 ∈ [ 0 , 1 , 0 , 2 ]
+_ = there (there (here refl))
+
+not-in : 3 ∉ [ 0 , 1 , 0 , 2 ]
+not-in (here ())
+not-in (there (here ()))
+not-in (there (there (here ())))
+not-in (there (there (there (here ()))))
+not-in (there (there (there (there ()))))
+
+-- The five occurrences of () attest to the fact that there is no
+-- possible evidence for 3 ≡ 0, 3 ≡ 1, 3 ≡ 0, 3 ≡ 2, and 3 ∈ [], respectively.
+
+-------------------------------------------
+-- All and append
+
+----------------
+-- Exercises
+
+-------------------------------------------
+-- Decidability of All
+
+----------------
+-- Exercises
+
+-------------------------------------------
+-- Standard Library
