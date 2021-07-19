@@ -4,7 +4,7 @@ module plfa.part1.Lists where
 -- Imports
 
 import Relation.Binary.PropositionalEquality as Eq
-open Eq using (_≡_; refl; sym; trans; cong)
+open Eq using (_≡_; refl; sym; trans; cong; cong₂)
 open Eq.≡-Reasoning
 open import Data.Bool using (Bool; true; false; T; _∧_; _∨_; not)
 open import Data.Nat using (ℕ; zero; suc; _+_; _*_; _∸_; _≤_; s≤s; z≤n)
@@ -430,3 +430,144 @@ map-++-distribute f (x ∷ xs) ys =
 data Tree (A B : Set) : Set where
   leaf : A → Tree A B
   node : Tree A B → B → Tree A B → Tree A B
+
+map-Tree : ∀ {A B C D : Set} → (A → C) → (B → D) → Tree A B → Tree C D
+map-Tree f g (leaf a) = leaf (f a)
+map-Tree f g (node l b r) = node (map-Tree f g l) (g b) (map-Tree f g r)
+
+
+--------------------------------
+-- Fold
+
+foldr : ∀ {A B : Set} → (A → B → B) → B → List A → B
+foldr _⊗_ e []        =  e
+foldr _⊗_ e (x ∷ xs)  =  x ⊗ foldr _⊗_ e xs
+
+_ : foldr _+_ 0 [ 1 , 2 , 3 , 4 ] ≡ 10
+_ =
+  begin
+    foldr _+_ 0 (1 ∷ 2 ∷ 3 ∷ 4 ∷ [])
+  ≡⟨⟩
+    1 + foldr _+_ 0 (2 ∷ 3 ∷ 4 ∷ [])
+  ≡⟨⟩
+    1 + (2 + foldr _+_ 0 (3 ∷ 4 ∷ []))
+  ≡⟨⟩
+    1 + (2 + (3 + foldr _+_ 0 (4 ∷ [])))
+  ≡⟨⟩
+    1 + (2 + (3 + (4 + foldr _+_ 0 [])))
+  ≡⟨⟩
+    1 + (2 + (3 + (4 + 0)))
+  ∎
+sum : List ℕ → ℕ
+sum = foldr _+_ 0
+
+_ : sum [ 1 , 2 , 3 , 4 ] ≡ 10
+_ =
+  begin
+    sum [ 1 , 2 , 3 , 4 ]
+  ≡⟨⟩
+    foldr _+_ 0 [ 1 , 2 , 3 , 4 ]
+  ≡⟨⟩
+    10
+  ∎
+
+-- In general, a data type with n constructors will have a corresponding fold function that takes n arguments.
+
+-- Demonstrating both these equations is left as an exercise:
+--
+-- foldr _∷_ [] xs ≡ xs
+--
+-- xs ++ ys ≡ foldr _∷_ ys xs
+
+-------------------------
+-- Exercises
+
+product : List ℕ → ℕ
+product = foldr _*_ 1
+
+_ : product [ 1 , 2 , 3 , 4 ] ≡ 24
+_ =
+  begin
+    product [ 1 , 2 , 3 , 4 ]
+  ≡⟨⟩
+    foldr _*_ 1 [ 1 , 2 , 3 , 4 ]
+  ≡⟨⟩
+    24
+  ∎
+foldr-++ : ∀ {A B : Set} (_⊗_ : A → B → B) (e : B) (xs ys : List A)
+  → foldr _⊗_ e (xs ++ ys) ≡ foldr _⊗_ (foldr _⊗_ e ys) xs
+foldr-++ _ e [] ys = refl
+foldr-++ _⊗_ e (x ∷ xs) ys =
+  begin
+    foldr _⊗_ e ((x ∷ xs) ++ ys)
+  ≡⟨⟩
+    foldr _⊗_ e (x ∷ (xs ++ ys))
+  ≡⟨⟩
+    x ⊗ (foldr _⊗_ e (xs ++ ys))
+  ≡⟨ cong (x ⊗_) (foldr-++ _⊗_ e xs ys)⟩
+    x ⊗ (foldr _⊗_ (foldr _⊗_ e ys) xs)
+  ≡⟨⟩
+    foldr _⊗_ (foldr _⊗_ e ys) (x ∷ xs)
+  ∎
+-- Notice the difference between _⊗_ and ⊗
+
+foldr-∷ : ∀ {A : Set} (xs : List A)
+  → foldr _∷_ [] xs ≡ xs
+foldr-∷ [] = refl
+foldr-∷ (x ∷ xs) rewrite foldr-∷ xs = refl
+
+-- foldr-++-lemma : ∀ {A : Set} (xs ys : List A)
+--   → xs ++ ys ≡ foldr _∷_ ys xs
+-- foldr-++-lemma [] ys = refl
+-- foldr-++-lemma (x ∷ xs) ys rewrite foldr-++-lemma xs ys = refl
+
+foldr-++-lemma : ∀ {A : Set} (xs ys : List A)
+  → xs ++ ys ≡ foldr _∷_ ys xs
+foldr-++-lemma xs ys =
+  begin
+    xs ++ ys
+  ≡⟨ sym (foldr-∷ (xs ++ ys)) ⟩
+    foldr _∷_ [] (xs ++ ys)
+  ≡⟨ foldr-++ _∷_ [] xs ys ⟩
+    foldr _∷_ (foldr _∷_ [] ys) xs
+  ≡⟨ cong (λ{e → foldr _∷_ e xs}) (foldr-∷ ys) ⟩
+    foldr _∷_ ys xs
+  ∎
+
+map-is-foldr : ∀ {A B : Set} {f : A → B}
+  → map f ≡ foldr (λ x xs → f x ∷ xs) []
+map-is-foldr = extensionality map-is-foldr′
+  where
+    map-is-foldr′ : ∀ {A B : Set} {f : A → B} (xs : List A)
+      → map f xs ≡ foldr (λ x xs → f x ∷ xs) [] xs
+    map-is-foldr′ [] = refl
+    map-is-foldr′ {f = f} (x ∷ xs) = cong (f x ∷_) (map-is-foldr′ xs)
+
+fold-Tree : ∀ {A B C : Set} → (A → C) → (C → B → C → C) → Tree A B → C
+fold-Tree f _⊗_ (leaf x) = f x
+fold-Tree f _⊗_ (node l x r) = _⊗_ (fold-Tree f _⊗_ l) x (fold-Tree f _⊗_ r)
+
+map-is-fold-Tree : ∀ {A B C D : Set} {f : A → C} {g : B → D}
+  → map-Tree f g ≡ fold-Tree {A} {B} {Tree C D} (λ x → leaf (f x)) (λ l x r → node l (g x) r)
+map-is-fold-Tree = extensionality map-is-fold-Tree′
+  where
+    map-is-fold-Tree′ : ∀ {A B C D : Set} {f : A → C} {g : B → D} (t : Tree A B)
+      → map-Tree f g t ≡ fold-Tree {A} {B} {Tree C D} (λ x → leaf (f x)) (λ l x r → node l (g x) r) t
+    map-is-fold-Tree′ (leaf x) = refl
+    map-is-fold-Tree′ {g = g} (node l x r) = cong₂ (λ l r → node l (g x) r) (map-is-fold-Tree′ l) (map-is-fold-Tree′  r)
+
+downFrom : ℕ → List ℕ
+downFrom zero = []
+downFrom (suc n) = n ∷ downFrom n
+
+_ : downFrom 3 ≡ [ 2 , 1 , 0 ]
+_ = refl
+
+-- Prove that the sum of the numbers (n - 1) + ⋯ + 0 is equal to n * (n ∸ 1) / 2:
+--
+-- sum (downFrom n) * 2 ≡ n * (n ∸ 1)
+--
+-- TODO
+
+------------------------------------
+-- Monoids
