@@ -12,6 +12,7 @@ open import Data.Nat.Properties using
   (+-assoc; +-identityˡ; +-identityʳ; *-assoc; *-identityˡ; *-identityʳ)
 open import Relation.Nullary using (¬_; Dec; yes; no)
 open import Data.Product using (_×_; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
+open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Function using (_∘_)
 open import Level using (Level)
 open import plfa.part1.Isomorphism using (_≃_; _⇔_; extensionality)
@@ -97,13 +98,13 @@ _ =
   begin
     (x ∷ xs ++ ys) ++ zs
   ≡⟨⟩
-    x ∷ (xs ++ ys) ++ zs
+    (x ∷ (xs ++ ys)) ++ zs
   ≡⟨⟩
     x ∷ ((xs ++ ys) ++ zs)
   ≡⟨ cong (x ∷_) (++-assoc xs ys zs) ⟩
     x ∷ (xs ++ (ys ++ zs))
   ≡⟨⟩
-    x ∷ xs ++ (ys ++ zs)
+    (x ∷ xs) ++ (ys ++ zs)
   ∎
 
 {-
@@ -179,6 +180,8 @@ length-++ {A} [] ys =
     length ([] ++ ys)
   ≡⟨⟩
     length ys
+  ≡⟨⟩
+    zero + length ys
   ≡⟨⟩
     length {A} [] + length ys
   ∎
@@ -473,12 +476,6 @@ _ =
 
 -- In general, a data type with n constructors will have a corresponding fold function that takes n arguments.
 
--- Demonstrating both these equations is left as an exercise:
---
--- foldr _∷_ [] xs ≡ xs
---
--- xs ++ ys ≡ foldr _∷_ ys xs
-
 -------------------------
 -- Exercises
 
@@ -492,8 +489,11 @@ _ =
   ≡⟨⟩
     foldr _*_ 1 [ 1 , 2 , 3 , 4 ]
   ≡⟨⟩
+    1 * 2 * 3 * 4 * 1
+  ≡⟨⟩
     24
   ∎
+
 foldr-++ : ∀ {A B : Set} (_⊗_ : A → B → B) (e : B) (xs ys : List A)
   → foldr _⊗_ e (xs ++ ys) ≡ foldr _⊗_ (foldr _⊗_ e ys) xs
 foldr-++ _ e [] ys = refl
@@ -548,11 +548,11 @@ fold-Tree f _⊗_ (leaf x) = f x
 fold-Tree f _⊗_ (node l x r) = _⊗_ (fold-Tree f _⊗_ l) x (fold-Tree f _⊗_ r)
 
 map-is-fold-Tree : ∀ {A B C D : Set} {f : A → C} {g : B → D}
-  → map-Tree f g ≡ fold-Tree {A} {B} {Tree C D} (λ x → leaf (f x)) (λ l x r → node l (g x) r)
+  → map-Tree f g ≡ fold-Tree (λ x → leaf (f x)) (λ l x r → node l (g x) r)
 map-is-fold-Tree = extensionality map-is-fold-Tree′
   where
     map-is-fold-Tree′ : ∀ {A B C D : Set} {f : A → C} {g : B → D} (t : Tree A B)
-      → map-Tree f g t ≡ fold-Tree {A} {B} {Tree C D} (λ x → leaf (f x)) (λ l x r → node l (g x) r) t
+      → map-Tree f g t ≡ fold-Tree (λ x → leaf (f x)) (λ l x r → node l (g x) r) t
     map-is-fold-Tree′ (leaf x) = refl
     map-is-fold-Tree′ {g = g} (node l x r) = cong₂ (λ l r → node l (g x) r) (map-is-fold-Tree′ l) (map-is-fold-Tree′  r)
 
@@ -567,6 +567,8 @@ _ = refl
 --
 -- sum (downFrom n) * 2 ≡ n * (n ∸ 1)
 --
+-- TODO
+-- TODO
 -- TODO
 
 ------------------------------------
@@ -614,7 +616,7 @@ foldr-monoid _⊗_ e ⊗-monoid [] y =
   ≡⟨ sym (identityˡ ⊗-monoid y) ⟩
     (e ⊗ y)
   ≡⟨⟩
-    foldr _⊗_ e [] ⊗ y
+    (foldr _⊗_ e []) ⊗ y
   ∎
 foldr-monoid _⊗_ e ⊗-monoid (x ∷ xs) y =
   begin
@@ -754,8 +756,164 @@ not-in (there (there (there (there ()))))
 -------------------------------------------
 -- All and append
 
+All-++-⇔ : ∀ {A : Set} {P : A → Set} (xs ys : List A) →
+  All P (xs ++ ys) ⇔ (All P xs × All P ys)
+All-++-⇔ xs ys =
+  record
+    { to       =  to xs ys
+    ; from     =  from xs ys
+    }
+  where
+
+  to : ∀ {A : Set} {P : A → Set} (xs ys : List A) →
+    All P (xs ++ ys) → (All P xs × All P ys)
+  to [] ys Pys = ⟨ [] , Pys ⟩
+  to (x ∷ xs) ys (Px ∷ Pxs++ys) with to xs ys Pxs++ys
+  ... | ⟨ Pxs , Pys ⟩ = ⟨ Px ∷ Pxs , Pys ⟩
+
+  from : ∀ { A : Set} {P : A → Set} (xs ys : List A) →
+    All P xs × All P ys → All P (xs ++ ys)
+  from [] ys ⟨ [] , Pys ⟩ = Pys
+  from (x ∷ xs) ys ⟨ Px ∷ Pxs , Pys ⟩ =  Px ∷ from xs ys ⟨ Pxs , Pys ⟩
+
 ----------------
 -- Exercises
+
+Any-++-⇔ : ∀ {A : Set} {P : A → Set} (xs ys : List A) →
+  Any P (xs ++ ys) ⇔ (Any P xs ⊎ Any P ys)
+Any-++-⇔ xs ys =
+  record
+    { to = to xs ys
+    ; from = from xs ys
+    }
+  where
+
+  to : ∀ {A : Set} {P : A → Set} (xs ys : List A) →
+    Any P (xs ++ ys) → (Any P xs ⊎ Any P ys)
+  to [] ys Pys = inj₂ Pys
+  to (x ∷ xs) ys (here Px) = inj₁ (here Px)
+  to (x ∷ xs) ys (there Pxs++ys) with to xs ys Pxs++ys
+  ... | (inj₁ Pxs) = inj₁ (there Pxs)
+  ... | (inj₂ Pys) = inj₂ Pys
+
+  from : ∀ {A : Set} {P : A → Set} (xs ys : List A) →
+    (Any P xs ⊎ Any P ys) → Any P (xs ++ ys)
+  from [] ys (inj₂ Pys) = Pys
+  from (x ∷ xs) ys (inj₁ (here Px)) = here Px
+  from (x ∷ xs) ys (inj₁ (there Pxs)) = there (from xs ys (inj₁ Pxs))
+  from (x ∷ xs) ys (inj₂ Pys) = there (from xs ys (inj₂ Pys))
+
+All-++-≃ : ∀ {A : Set} {P : A → Set} (xs ys : List A) →
+  All P (xs ++ ys) ≃ (All P xs × All P ys)
+All-++-≃ xs ys =
+  record
+    { to       =  to xs ys
+    ; from     =  from xs ys
+    ; from∘to  =  from∘to xs ys
+    ; to∘from  =  to∘from xs ys
+    }
+  where
+
+  to : ∀ {A : Set} {P : A → Set} (xs ys : List A) →
+    All P (xs ++ ys) → (All P xs × All P ys)
+  to [] ys Pys = ⟨ [] , Pys ⟩
+  to (x ∷ xs) ys (Px ∷ Pxs++ys) with to xs ys Pxs++ys
+  ... | ⟨ Pxs , Pys ⟩ = ⟨ Px ∷ Pxs , Pys ⟩
+
+  from : ∀ { A : Set} {P : A → Set} (xs ys : List A) →
+    All P xs × All P ys → All P (xs ++ ys)
+  from [] ys ⟨ [] , Pys ⟩ = Pys
+  from (x ∷ xs) ys ⟨ Px ∷ Pxs , Pys ⟩ =  Px ∷ from xs ys ⟨ Pxs , Pys ⟩
+
+  from∘to : ∀ {A : Set} {P : A → Set} (xs ys : List A) →
+    ∀ (Pxs++ys : All P (xs ++ ys)) → from xs ys (to xs ys Pxs++ys) ≡ Pxs++ys
+  from∘to [] ys Pxs++ys = refl
+  from∘to (x ∷ xs) ys (x₁ ∷ Pxs++ys) = cong (x₁ ∷_) (from∘to xs ys Pxs++ys)
+
+  to∘from : ∀ {A : Set} {P : A → Set} (xs ys : List A) →
+    ∀ (Pxs×Pys : (All P xs × All P ys)) → to xs ys (from xs ys Pxs×Pys) ≡ Pxs×Pys
+  to∘from [] ys ⟨ [] , snd ⟩ = refl
+  to∘from (x ∷ xs) ys ⟨ x₁ ∷ fst , snd ⟩ rewrite to∘from xs ys ⟨ fst , snd ⟩ = refl
+
+-- Exercise ¬Any⇔All¬ (recommended)
+
+-- Show that Any and All satisfy a version of De Morgan’s Law:
+
+¬Any⇔All¬ : ∀ {A : Set} {P : A → Set} (xs : List A)
+  → (¬_ ∘ Any P) xs ⇔ All (¬_ ∘ P) xs
+¬Any⇔All¬ xs =
+  record
+    { to   = to xs
+    ; from = from xs
+    }
+  where
+
+  -- Can you see why it is important that here _∘_ is generalised to arbitrary levels,
+  -- as described in the section on universe polymorphism?
+
+  to : ∀ {A : Set} {P : A → Set} (xs : List A)
+    → (¬_ ∘ Any P) xs → All (¬_ ∘ P) xs
+  to [] ¬AnyP = []
+  to (x ∷ xs) ¬AnyP = (λ Px → ¬AnyP (here Px)) ∷ to xs (λ Pxs → ¬AnyP (there Pxs))
+
+  from : ∀ {A : Set} {P : A → Set} (xs : List A)
+    → All (¬_ ∘ P) xs → (¬_ ∘ Any P) xs
+  from [] [] ()
+  from (x ∷ xs) (¬Px ∷ all) (here Px) = ¬Px Px
+  from (x ∷ xs) (_ ∷ ¬Pxs) (there Pxs) = (from xs ¬Pxs) Pxs
+
+-- Do we also have the following?
+--
+--   (¬_ ∘ All P) xs ⇔ Any (¬_ ∘ P) xs
+--
+-- If so, prove; if not, explain why.
+
+All-∀ : ∀ {A : Set} {P : A → Set} (xs : List A)
+  → All P xs ⇔ (∀ {x} → x ∈ xs → P x)
+All-∀ xs =
+  record
+    { to   = to xs
+    ; from = from xs
+    }
+  where
+
+  -- _∈_ : ∀ {A : Set} (x : A) (xs : List A) → Set
+  -- x ∈ xs = Any (x ≡_) xs
+
+  -- _∉_ : ∀ {A : Set} (x : A) (xs : List A) → Set
+  -- x ∉ xs = ¬ (x ∈ xs)
+
+  to : ∀ {A : Set} {P : A → Set} (xs : List A)
+    → All P xs → (∀ {x} → x ∈ xs → P x)
+  to [] [] ()
+  to (x ∷ xs) (Px ∷ all) (here refl) = Px
+  to (x ∷ xs) (Px ∷ Pxs) (there x₁∈xs) = (to xs Pxs) x₁∈xs
+
+  from : ∀ {A : Set} {P : A → Set} (xs : List A)
+    → (∀ {x} → x ∈ xs → P x) → All P xs
+  from [] x∈xs = []
+  from (x ∷ xs) x∈xs = x∈xs (here refl) ∷ from xs (λ x₁∈xs₁ → x∈xs (there x₁∈xs₁))
+
+
+Any-∃ : ∀ {A : Set} {P : A → Set} (xs : List A)
+  → Any P xs ⇔ ∃[ x ] (x ∈ xs × P x)
+Any-∃ xs =
+  record
+    { to   = to xs
+    ; from = from xs
+    }
+  where
+
+  to : ∀ {A : Set} {P : A → Set} (xs : List A)
+    → Any P xs → ∃[ x ] (x ∈ xs × P x)
+  to (x ∷ xs) (here Px) = ⟨ x , ⟨ here refl , Px ⟩ ⟩
+  to (x ∷ xs) (there Pxs) with to xs Pxs
+  ... | ⟨ x′ , ⟨ x′∈xs , Px′ ⟩ ⟩ = ⟨ x′ , ⟨ there x′∈xs , Px′ ⟩ ⟩
+
+  from : ∀ {A : Set} {P : A → Set} (xs : List A)
+    → ∃[ x ] (x ∈ xs × P x) → Any P xs
+  from (x ∷ xs) ⟨ x′ , ⟨ here refl , Px′ ⟩ ⟩ = here Px′
+  from (x ∷ xs) ⟨ x′ , ⟨ there x′∈xs , Px′ ⟩ ⟩ = there (from xs ⟨ x′ , ⟨ x′∈xs , Px′ ⟩ ⟩)
 
 -------------------------------------------
 -- Decidability of All
