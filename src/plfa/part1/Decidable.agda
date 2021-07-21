@@ -291,7 +291,7 @@ fromWitness {A} {no ¬x} x  =  ¬x x
 
 -- Using these, we can easily derive that T (m ≤ᵇ′ n) is inhabited exactly when m ≤ n is inhabited:
 ≤ᵇ′→≤ : ∀ {m n : ℕ} → T (m ≤ᵇ′ n) → m ≤ n
-≤ᵇ′→≤  =  toWitness
+≤ᵇ′→≤ = toWitness
 
 ≤→≤ᵇ′ : ∀ {m n : ℕ} → m ≤ n → T (m ≤ᵇ′ n)
 ≤→≤ᵇ′  =  fromWitness

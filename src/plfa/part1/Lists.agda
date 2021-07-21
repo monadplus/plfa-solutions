@@ -868,6 +868,46 @@ All-++-≃ xs ys =
 --
 -- If so, prove; if not, explain why.
 
+Any¬→¬All : ∀ {A : Set} {P : A → Set} (xs : List A) →
+  Any (¬_ ∘ P) xs → (¬_ ∘ All P) xs
+Any¬→¬All (x ∷ xs) (here ¬Px) (Px ∷ all) = ¬Px Px
+Any¬→¬All (_ ∷ xs) (there Any¬xs) (_ ∷ all) = (Any¬→¬All xs Any¬xs) all
+
+-- ¬All→Any¬ : ∀ {A : Set} {P : A → Set} (xs : List A) →
+--   (¬_ ∘ All P) xs → Any (¬_ ∘ P) xs
+-- ¬All→Any¬ [] ¬All-xs = ?
+-- ¬All→Any¬ (x ∷ xs) ¬All-xs = ?
+
+-- ¬Any≃All¬ : ∀ {A : Set} {P : A → Set} (xs : List A)
+--   → (¬_ ∘ Any P) xs ≃ All (¬_ ∘ P) xs
+-- ¬Any≃All¬ xs =
+--   record
+--     { to      = to xs
+--     ; from    = from xs
+--     ; from∘to = from∘to xs
+--     ; to∘from = to∘from xs
+--     }
+--   where
+
+--   to : ∀ {A : Set} {P : A → Set} (xs : List A)
+--     → (¬_ ∘ Any P) xs → All (¬_ ∘ P) xs
+--   to [] ¬AnyP = []
+--   to (x ∷ xs) ¬AnyP = (λ Px → ¬AnyP (here Px)) ∷ to xs (λ Pxs → ¬AnyP (there Pxs))
+
+--   from : ∀ {A : Set} {P : A → Set} (xs : List A)
+--     → All (¬_ ∘ P) xs → (¬_ ∘ Any P) xs
+--   from [] [] ()
+--   from (x ∷ xs) (¬Px ∷ all) (here Px) = ¬Px Px
+--   from (x ∷ xs) (_ ∷ ¬Pxs) (there Pxs) = (from xs ¬Pxs) Pxs
+
+--   from∘to : ∀ {A : Set} {P : A → Set} (xs : List A)
+--     → ∀ (x : (¬_ ∘ Any P) xs) → from xs (to xs x) ≡ x
+--   from∘to = {!!}
+
+--   to∘from : ∀ {A : Set} {P : A → Set} (xs : List A)
+--     → ∀ (x : All (¬_ ∘ P) xs) → to xs (from xs x) ≡ x
+--   to∘from = {!!}
+
 All-∀ : ∀ {A : Set} {P : A → Set} (xs : List A)
   → All P xs ⇔ (∀ {x} → x ∈ xs → P x)
 All-∀ xs =
@@ -876,12 +916,6 @@ All-∀ xs =
     ; from = from xs
     }
   where
-
-  -- _∈_ : ∀ {A : Set} (x : A) (xs : List A) → Set
-  -- x ∈ xs = Any (x ≡_) xs
-
-  -- _∉_ : ∀ {A : Set} (x : A) (xs : List A) → Set
-  -- x ∉ xs = ¬ (x ∈ xs)
 
   to : ∀ {A : Set} {P : A → Set} (xs : List A)
     → All P xs → (∀ {x} → x ∈ xs → P x)
@@ -918,8 +952,98 @@ Any-∃ xs =
 -------------------------------------------
 -- Decidability of All
 
-----------------
--- Exercises
+-- If we consider a predicate as a function that yields a boolean,
+-- it is easy to define an analogue of All, which returns true if a given predicate
+-- returns true for every element of a list:
+
+all : ∀ {A : Set} → (A → Bool) → List A → Bool
+all p  =  foldr _∧_ true ∘ map p
+
+-- As one would hope, if we replace booleans by decidables there is again an analogue of All.
+-- First, return to the notion of a predicate P as a function of type A → Set,
+-- taking a value x of type A into evidence P x that a property holds for x.
+-- Say that a predicate P is decidable if we have a function that for a given x can decide P x:
+
+Decidable : ∀ {A : Set} → (A → Set) → Set
+Decidable {A} P  =  ∀ (x : A) → Dec (P x)
+
+-- Then if predicate P is decidable, it is also decidable whether every element of a list satisfies the predicate:
+
+All? : ∀ {A : Set} {P : A → Set} → Decidable P → Decidable (All P)
+All? P? [] =  yes []
+All? P? (x ∷ xs) with P? x   | All? P? xs
+...                 | yes Px | yes Pxs     =  yes (Px ∷ Pxs)
+...                 | no ¬Px | _           =  no λ{ (Px ∷ Pxs) → ¬Px Px   }
+...                 | _      | no ¬Pxs     =  no λ{ (Px ∷ Pxs) → ¬Pxs Pxs }
+
+any : ∀ {A : Set} → (A → Bool) → List A → Bool
+any p = foldr _∨_ false ∘ map p
+
+Any? : ∀ {A : Set} {P : A → Set} → Decidable P → Decidable (Any P)
+Any? P? [] = no (λ ())
+Any? P? (x ∷ xs) with P? x   | Any? P? xs
+...                 | yes Px | _          = yes (here Px)
+...                 | _      | yes Pxs    = yes (there Pxs)
+...                 | no ¬Px | no ¬Pxs    = no λ{ (here Px) → ¬Px Px ; (there Pxs) → ¬Pxs Pxs}
+
+-- The relation merge holds when two lists merge to give a third list.
+
+data merge {A : Set} : (xs ys zs : List A) → Set where
+
+  [] :
+      --------------
+      merge [] [] []
+
+  left-∷ : ∀ {x xs ys zs}
+    → merge xs ys zs
+      --------------------------
+    → merge (x ∷ xs) ys (x ∷ zs)
+
+  right-∷ : ∀ {y xs ys zs}
+    → merge xs ys zs
+      --------------------------
+    → merge xs (y ∷ ys) (y ∷ zs)
+
+_ : merge [ 1 , 4 ] [ 2 , 3 ] [ 1 , 2 , 3 , 4 ]
+_ = left-∷ (right-∷ (right-∷ (left-∷ [])))
+
+-- Given a decidable predicate and a list, we can split the list into two lists that merge to give the original list,
+-- where all elements of one list satisfy the predicate, and all elements of the other do not satisfy the predicate.
+
+-- Define the following variant of the traditional filter function on lists, which given a decidable predicate
+-- and a list returns a list of elements that satisfy the predicate and a list of elements that don’t,
+-- with their corresponding proofs.
+
+split : ∀ {A : Set} {P : A → Set} (P? : Decidable P) (zs : List A)
+  → ∃[ xs ] ∃[ ys ] ( merge xs ys zs × All P xs × All (¬_ ∘ P) ys )
+split P? [] = ⟨ [] , ⟨ [] , ⟨ [] , ⟨ [] , [] ⟩ ⟩ ⟩ ⟩
+split P? (z ∷ zs) with P? z   | split P? zs
+...                  | yes Px | ⟨ xs , ⟨ ys , ⟨ merge , ⟨ all , all¬ ⟩ ⟩ ⟩ ⟩ = ⟨ z ∷ xs , ⟨ ys , ⟨ left-∷ merge , ⟨ Px ∷ all , all¬ ⟩ ⟩ ⟩ ⟩
+...                  | no ¬Px | ⟨ xs , ⟨ ys , ⟨ merge , ⟨ all , all¬ ⟩ ⟩ ⟩ ⟩ = ⟨ xs , ⟨ z ∷ ys , ⟨ right-∷ merge , ⟨ all , ¬Px ∷ all¬ ⟩ ⟩ ⟩ ⟩
 
 -------------------------------------------
 -- Standard Library
+
+-- Definitions similar to those in this chapter can be found in the standard library:
+
+{-
+
+import Data.List using (List; _++_; length; reverse; map; foldr; downFrom)
+import Data.List.Relation.Unary.All using (All; []; _∷_)
+import Data.List.Relation.Unary.Any using (Any; here; there)
+import Data.List.Membership.Propositional using (_∈_)
+import Data.List.Properties
+  using (reverse-++-commute; map-compose; map-++-commute; foldr-++)
+  renaming (mapIsFold to map-is-foldr)
+import Algebra.Structures using (IsMonoid)
+import Relation.Unary using (Decidable)
+import Relation.Binary using (Decidable)
+
+-}
+
+-- The standard library version of IsMonoid differs from the one given here,
+-- in that it is also parameterised on an equivalence relation.
+
+-- Both Relation.Unary and Relation.Binary define a version of Decidable,
+-- one for unary relations (as used in this chapter where P ranges over unary predicates)
+-- and one for binary relations (as used earlier, where _≤_ ranges over a binary relation).
