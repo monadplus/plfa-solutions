@@ -407,22 +407,22 @@ _ = refl
 infix 9 _[_:=_]′
 
 _[_:=_]′ : Term → Id → Term → Term
-_[ƛ_⇒_:=_]′ : Term → Id → Id → Term → Term
+_[ƛ_,_:=_]′ : Term → Id → Id → Term → Term
 
-N [ƛ x ⇒ y := V ]′ with x ≟ y
-... | yes _           = V
+N [ƛ x , y := V ]′ with x ≟ y
+... | yes _           = N
 ... | no _            = N [ y := V ]′
 
 (` x) [ y := V ]′ with x ≟ y
 ... | yes _          =  V
 ... | no  _          =  ` x
-(ƛ x ⇒ N) [ y := V ]′ = ƛ x ⇒ N [ƛ x ⇒ y := V ]′
+(ƛ x ⇒ N) [ y := V ]′ = ƛ x ⇒ N [ƛ x , y := V ]′
 (L · M) [ y := V ]′   =  L [ y := V ]′ · M [ y := V ]′
 (`zero) [ y := V ]′   =  `zero
 (`suc M) [ y := V ]′  =  `suc M [ y := V ]′
 (case L [zero⇒ M |suc x ⇒ N ]) [ y := V ]′ =
-  case L [ y := V ]′ [zero⇒ M [ y := V ]′ |suc x ⇒ N [ƛ x ⇒ y := V ]′ ]
-(μ x ⇒ N) [ y := V ]′ = μ x ⇒ N [ƛ x ⇒ y := V ]′
+  case L [ y := V ]′ [zero⇒ M [ y := V ]′ |suc x ⇒ N [ƛ x , y := V ]′ ]
+(μ x ⇒ N) [ y := V ]′ = μ x ⇒ N [ƛ x , y := V ]′
 
 ------------------------------
 -- Reduction
