@@ -23,12 +23,13 @@ open import Data.Bool using (T; not)
 open import Data.Empty using (⊥; ⊥-elim)
 open import Data.List using (List; _∷_; [])
 open import Data.Nat using (ℕ; zero; suc)
-open import Data.Product using (∃-syntax; _×_)
+open import Data.Product using (_×_; ∃; ∃-syntax) renaming (_,_ to ⟨_,_⟩)
 open import Data.String using (String; _≟_)
 open import Relation.Nullary using (Dec; yes; no; ¬_)
 open import Relation.Nullary.Decidable using (⌊_⌋; False; toWitnessFalse)
 open import Relation.Nullary.Negation using (¬?)
 open import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl)
+open import plfa.part1.Isomorphism using (_≲_; _≃_; extensionality)
 
 -----------------------------------------------
 -- Syntax of terms
@@ -74,9 +75,9 @@ L, M, N  ::=
 Id : Set
 Id = String
 
-infix  5  ƛ_⇒_   -- Gl-
-infix  5  μ_⇒_   -- mu
-infixl 7  _·_     -- cdot
+infix  5  ƛ_⇒_   -- \Gl-
+infix  5  μ_⇒_   -- \mu
+infixl 7  _·_     -- \cdot
 infix  8  `suc_
 infix  9  `_
 
@@ -538,3 +539,348 @@ _ = ξ-·₁ (β-ƛ V-ƛ)
 ------------------------------------------
 -- Reflexive and transitive closure
 
+-- A single step is only part of the story. In general, we wish to repeatedly step a closed term until it reduces to a value.
+-- We do this by defining the reflexive and transitive closure —↠ of the step relation —→.
+--
+-- We define reflexive and transitive closure as a sequence of zero or more steps of the underlying relation.
+
+infix  2 _—↠_ -- \em\rr-
+infix  1 begin_
+infixr 2 _—→⟨_⟩_
+infix  3 _∎
+
+data _—↠_ : Term → Term → Set where
+  _∎ : ∀ M
+      ---------
+    → M —↠ M
+
+  _—→⟨_⟩_ : ∀ L {M N}
+    → L —→ M
+    → M —↠ N
+      ---------
+    → L —↠ N
+
+begin_ : ∀ {M N}
+  → M —↠ N
+    ------
+  → M —↠ N
+begin M—↠N = M—↠N
+
+—↠-trans : ∀ {M L N} → M —↠ L → L —↠ N → M —↠ N
+—↠-trans (_ ∎) M—↠N = M—↠N
+—↠-trans {M} {L} {N} (_ —→⟨ M—↠L₁ ⟩ L₁—↠L) L—↠N = M —→⟨ M—↠L₁ ⟩ —↠-trans L₁—↠L L—↠N
+
+-- We can read this as follows:
+--
+-- * From term M, we can take no steps, giving a step of type M —↠ M. It is written M ∎.
+-- * From term L we can take a single step of type L —→ M followed by zero or more steps of type M —↠ N,
+--   giving a step of type L —↠ N. It is written L —→⟨ L—→M ⟩ M—↠N, where L—→M and M—↠N are steps
+--   of the appropriate type.
+
+
+-- An alternative is to define reflexive and transitive closure directly,
+-- as the smallest relation that includes —→ and is also reflexive and transitive.
+--
+-- We could do so as follows:
+
+data _—↠′_ : Term → Term → Set where
+
+  step′ : ∀ {M N}
+    → M —→ N
+      -------
+    → M —↠′ N
+
+  refl′ : ∀ {M}
+      -------
+    → M —↠′ M
+
+  trans′ : ∀ {L M N}
+    → L —↠′ M
+    → M —↠′ N
+      -------
+    → L —↠′ N
+
+-- The three constructors specify, respectively, that —↠′ includes —→ and is reflexive and transitive.
+
+—↠≲—↠′ : ∀ {M N : Term} → M —↠ N ≲ M —↠′ N
+—↠≲—↠′ =
+  record
+    { to = to
+    ; from = from
+    ; from∘to = from∘to
+    }
+  where
+
+  to : ∀ {M N : Term} → M —↠ N → M —↠′ N
+  to (M ∎) = refl′
+  to (M₁ —→⟨ M₁—→M₂ ⟩ M₂—↠N) = trans′ (step′ M₁—→M₂) (to M₂—↠N)
+
+  from : ∀ {M N : Term} → M —↠′ N → M —↠ N
+  from {M} {N} (step′ M—→N) = M —→⟨ M—→N ⟩ N ∎
+  from {M} {N} refl′ = M ∎
+  from {M} {N} (trans′ M—↠′M₂ M₂—↠′N) = —↠-trans (from M—↠′M₂) (from M₂—↠′N)
+
+  from∘to : ∀ {M N : Term} (x : M —↠ N) → from (to x) ≡ x
+  from∘to (M ∎) = refl
+  from∘to (M —→⟨ M—→M₁ ⟩ M₁—↠N) rewrite from∘to M₁—↠N = refl
+
+---------------------------
+-- Confluence
+
+-- One important property a reduction relation might satisfy is to be *confluent*.
+-- If term L reduces to two other terms, M and N, then both of these reduce to a common term P.
+-- It can be illustrated as follows:
+
+--            L
+--           / \
+--          /   \
+--         /     \
+--        M       N
+--         \     /
+--          \   /
+--           \ /
+--            P
+
+-- Here L, M, N are universally quantified while P is existentially quantified.
+-- If each line stands for zero or more reduction steps, this is called confluence,
+-- while if the top two lines stand for a single reduction step and the bottom two stand for
+-- zero or more reduction steps it is called the diamond property.
+
+postulate
+  confluence : ∀ {L M N}
+    → ((L —↠ M) × (L —↠ N))
+      --------------------
+    → ∃[ P ] ((M —↠ P) × (N —↠ P))
+
+  diamond : ∀ {L M N}
+    → ((L —→ M) × (L —→ N))
+      --------------------
+    → ∃[ P ] ((M —↠ P) × (N —↠ P))
+
+-- The reduction system studied in this chapter is deterministic.
+-- In symbols:
+
+postulate
+  deterministic : ∀ {L M N}
+    → L —→ M
+    → L —→ N
+      ------
+    → M ≡ N
+
+-- It is easy to show that every deterministic relation satisfies the diamond and confluence properties.
+-- Hence, all the reduction systems studied in this text are trivially confluent.
+
+----------------------------
+-- Examples
+
+-- The Church numeral two applied to the successor function and zero yields the natural number two:
+
+_ : twoᶜ · sucᶜ · `zero —↠ `suc `suc `zero
+_ =
+  begin
+    twoᶜ · sucᶜ · `zero
+  —→⟨ ξ-·₁ (β-ƛ V-ƛ) ⟩
+    (ƛ "z" ⇒ sucᶜ · (sucᶜ · ` "z")) · `zero
+  —→⟨ β-ƛ V-zero ⟩
+    sucᶜ · (sucᶜ · `zero)
+  —→⟨ ξ-·₂ V-ƛ (β-ƛ V-zero) ⟩
+    sucᶜ · `suc `zero
+  —→⟨ β-ƛ (V-suc V-zero) ⟩
+    `suc (`suc `zero)
+  ∎
+
+--  Here is a sample reduction demonstrating that two plus two is four:
+
+_ : plus · two · two —↠ `suc `suc `suc `suc `zero
+_ =
+  begin
+    plus · two · two
+  —→⟨ ξ-·₁ (ξ-·₁ β-μ) ⟩
+    (ƛ "m" ⇒ ƛ "n" ⇒
+      case ` "m" [zero⇒ ` "n" |suc "m" ⇒ `suc (plus · ` "m" · ` "n") ])
+        · two · two
+  —→⟨ ξ-·₁ (β-ƛ (V-suc (V-suc V-zero))) ⟩
+    (ƛ "n" ⇒
+      case two [zero⇒ ` "n" |suc "m" ⇒ `suc (plus · ` "m" · ` "n") ])
+         · two
+  —→⟨ β-ƛ (V-suc (V-suc V-zero)) ⟩
+    case two [zero⇒ two |suc "m" ⇒ `suc (plus · ` "m" · two) ]
+  —→⟨ β-suc (V-suc V-zero) ⟩
+    `suc (plus · `suc `zero · two)
+  -- The same as before with ξ-suc ... --
+  —→⟨ ξ-suc (ξ-·₁ (ξ-·₁ β-μ)) ⟩
+    `suc ((ƛ "m" ⇒ ƛ "n" ⇒
+      case ` "m" [zero⇒ ` "n" |suc "m" ⇒ `suc (plus · ` "m" · ` "n") ])
+        · `suc `zero · two)
+  —→⟨ ξ-suc (ξ-·₁ (β-ƛ (V-suc V-zero))) ⟩
+    `suc ((ƛ "n" ⇒
+      case `suc `zero [zero⇒ ` "n" |suc "m" ⇒ `suc (plus · ` "m" · ` "n") ])
+        · two)
+  —→⟨ ξ-suc (β-ƛ (V-suc (V-suc V-zero))) ⟩
+    `suc (case `suc `zero [zero⇒ two |suc "m" ⇒ `suc (plus · ` "m" · two) ])
+  —→⟨ ξ-suc (β-suc V-zero) ⟩
+    `suc `suc (plus · `zero · two)
+  -- The same as before with ξ-suc (ξ-suc ...) --
+  —→⟨ ξ-suc (ξ-suc (ξ-·₁ (ξ-·₁ β-μ))) ⟩
+    `suc `suc ((ƛ "m" ⇒ ƛ "n" ⇒
+      case ` "m" [zero⇒ ` "n" |suc "m" ⇒ `suc (plus · ` "m" · ` "n") ])
+        · `zero · two)
+  —→⟨ ξ-suc (ξ-suc (ξ-·₁ (β-ƛ V-zero))) ⟩
+    `suc `suc ((ƛ "n" ⇒
+      case `zero [zero⇒ ` "n" |suc "m" ⇒ `suc (plus · ` "m" · ` "n") ])
+        · two)
+  —→⟨ ξ-suc (ξ-suc (β-ƛ (V-suc (V-suc V-zero)))) ⟩
+    `suc `suc (case `zero [zero⇒ two |suc "m" ⇒ `suc (plus · ` "m" · two) ])
+  —→⟨ ξ-suc (ξ-suc β-zero) ⟩
+    `suc (`suc (`suc (`suc `zero)))
+  ∎
+
+--  And here is a similar sample reduction for Church numerals:
+
+_ : plusᶜ · twoᶜ · twoᶜ · sucᶜ · `zero —↠ `suc `suc `suc `suc `zero
+_ =
+  begin
+    (ƛ "m" ⇒ ƛ "n" ⇒ ƛ "s" ⇒ ƛ "z" ⇒ ` "m" · ` "s" · (` "n" · ` "s" · ` "z"))
+      · twoᶜ · twoᶜ · sucᶜ · `zero
+  —→⟨ ξ-·₁ (ξ-·₁ (ξ-·₁ (β-ƛ V-ƛ))) ⟩
+    (ƛ "n" ⇒ ƛ "s" ⇒ ƛ "z" ⇒ twoᶜ · ` "s" · (` "n" · ` "s" · ` "z"))
+      · twoᶜ · sucᶜ · `zero
+  —→⟨ ξ-·₁ (ξ-·₁ (β-ƛ V-ƛ)) ⟩
+    (ƛ "s" ⇒ ƛ "z" ⇒ twoᶜ · ` "s" · (twoᶜ · ` "s" · ` "z")) · sucᶜ · `zero
+  —→⟨ ξ-·₁ (β-ƛ V-ƛ) ⟩
+    (ƛ "z" ⇒ twoᶜ · sucᶜ · (twoᶜ · sucᶜ · ` "z")) · `zero
+  —→⟨ β-ƛ V-zero ⟩
+    twoᶜ · sucᶜ · (twoᶜ · sucᶜ · `zero)
+  —→⟨ ξ-·₁ (β-ƛ V-ƛ) ⟩
+    (ƛ "z" ⇒ sucᶜ · (sucᶜ · ` "z")) · (twoᶜ · sucᶜ · `zero)
+  —→⟨ ξ-·₂ V-ƛ (ξ-·₁ (β-ƛ V-ƛ)) ⟩
+    (ƛ "z" ⇒ sucᶜ · (sucᶜ · ` "z")) · ((ƛ "z" ⇒ sucᶜ · (sucᶜ · ` "z")) · `zero)
+  —→⟨ ξ-·₂ V-ƛ (β-ƛ V-zero) ⟩
+    (ƛ "z" ⇒ sucᶜ · (sucᶜ · ` "z")) · (sucᶜ · (sucᶜ · `zero))
+  —→⟨ ξ-·₂ V-ƛ (ξ-·₂ V-ƛ (β-ƛ V-zero)) ⟩
+    (ƛ "z" ⇒ sucᶜ · (sucᶜ · ` "z")) · (sucᶜ · (`suc `zero))
+  —→⟨ ξ-·₂ V-ƛ (β-ƛ (V-suc V-zero)) ⟩
+    (ƛ "z" ⇒ sucᶜ · (sucᶜ · ` "z")) · (`suc `suc `zero)
+  —→⟨ β-ƛ (V-suc (V-suc V-zero)) ⟩
+    sucᶜ · (sucᶜ · `suc `suc `zero)
+  —→⟨ ξ-·₂ V-ƛ (β-ƛ (V-suc (V-suc V-zero))) ⟩
+    sucᶜ · (`suc `suc `suc `zero)
+  —→⟨ β-ƛ (V-suc (V-suc (V-suc V-zero))) ⟩
+   `suc (`suc (`suc (`suc `zero)))
+  ∎
+
+one : Term
+one = `suc `zero
+
+plus-example : plus · one · one —↠ `suc `suc `zero
+plus-example =
+  begin
+    plus · one · one
+  —→⟨ ξ-·₁ (ξ-·₁ β-μ) ⟩
+    (ƛ "m" ⇒ ƛ "n" ⇒
+      case ` "m" [zero⇒ ` "n" |suc "m" ⇒ `suc (plus · ` "m" · ` "n") ])
+        · one · one
+  —→⟨ ξ-·₁ (β-ƛ (V-suc V-zero)) ⟩
+    (ƛ "n" ⇒
+      case one [zero⇒ ` "n" |suc "m" ⇒ `suc (plus · ` "m" · ` "n") ])
+        · one
+  —→⟨ β-ƛ (V-suc V-zero) ⟩
+    case one [zero⇒ one |suc "m" ⇒ `suc (plus · ` "m" · one) ]
+  —→⟨ β-suc V-zero ⟩
+    `suc (plus · `zero · one)
+  -- same as before --
+  —→⟨ ξ-suc (ξ-·₁ (ξ-·₁ β-μ)) ⟩
+    `suc ((ƛ "m" ⇒ ƛ "n" ⇒
+      case ` "m" [zero⇒ ` "n" |suc "m" ⇒ `suc (plus · ` "m" · ` "n") ])
+        · `zero · one)
+  —→⟨ ξ-suc (ξ-·₁ (β-ƛ V-zero)) ⟩
+    `suc ((ƛ "n" ⇒
+      case `zero [zero⇒ ` "n" |suc "m" ⇒ `suc (plus · ` "m" · ` "n") ])
+        · one)
+  —→⟨ ξ-suc (β-ƛ (V-suc V-zero)) ⟩
+    `suc (case `zero [zero⇒ one |suc "m" ⇒ `suc (plus · ` "m" · one) ])
+  —→⟨ ξ-suc (β-zero) ⟩
+    `suc one
+  ∎
+
+----------------------------------------------------
+-- Syntax of types
+
+-- We have just two types:
+--     Functions, A ⇒ B
+--     Naturals, `ℕ
+-- As before, to avoid overlap we use variants of the names used by Agda.
+
+-- Here is the syntax of types in BNF:
+--   A, B, C  ::=  A ⇒ B | `ℕ
+-- And here it is formalised in Agda:
+
+infixr 7 _⇒_
+
+data Type : Set where
+  _⇒_ : Type → Type → Type
+  `ℕ : Type
+
+-- Precedence:
+--  (`ℕ ⇒ `ℕ) ⇒ `ℕ ⇒ `ℕ stands for ((`ℕ ⇒ `ℕ) ⇒ (`ℕ ⇒ `ℕ)).
+--  plus · two · two stands for (plus · two) · two.
+
+-- Quiz:
+
+-- ƛ "s" ⇒ ` "s" · (` "s"  · `zero) of type (`ℕ ⇒ `ℕ) ⇒ `ℕ
+
+-- (ƛ "s" ⇒ ` "s" · (` "s"  · `zero)) · sucᶜ of type `ℕ
+
+------------------------
+-- Typing
+
+-- While reduction considers only closed terms, typing must consider terms with free variables.
+-- To type a term, we must first type its subterms, and in particular in the body of an abstraction
+-- its bound variable may appear free.
+
+-- A context associates variables with types.
+-- We let Γ and Δ range over contexts.
+-- We write ∅ for the empty context, and Γ , x ⦂ A for the context that extends Γ by mapping variable x to type A.
+--
+-- For example,
+--
+--     ∅ , "s" ⦂ `ℕ ⇒ `ℕ , "z" ⦂ `ℕ
+--
+-- is the context that associates variable "s" with type `ℕ ⇒ `ℕ, and variable "z" with type `ℕ.
+
+-- Contexts are formalised as follows:
+
+infixl 5  _,_⦂_
+
+data Context : Set where
+  ∅     : Context -- \0
+  _,_⦂_ : Context → Id → Type → Context -- \: and move to the right
+
+Context-≃ : Context ≃ List (Id × Type)
+Context-≃ =
+  record
+    { to = to
+    ; from = from
+    ; from∘to = from∘to
+    ; to∘from = to∘from
+    }
+  where
+
+  to : Context → List (Id × Type)
+  to ∅ = []
+  to (Γ , x ⦂ σ) = ⟨ x , σ ⟩ ∷ to Γ
+
+  from : List (Id × Type) → Context
+  from [] = ∅
+  from (⟨ x , σ ⟩ ∷ xs) = (from xs), x ⦂ σ
+
+  from∘to : ∀ (x : Context) → from (to x) ≡ x
+  from∘to ∅ = refl
+  from∘to (ctx , x ⦂ x₁) rewrite from∘to ctx = refl
+
+  to∘from : ∀ (x : List (Id × Type)) → to (from x) ≡ x
+  to∘from [] = refl
+  to∘from (⟨ fst , snd ⟩ ∷ xs) rewrite to∘from xs = refl
+
+---------------------------------------------------------
+-- Lookup judgment
