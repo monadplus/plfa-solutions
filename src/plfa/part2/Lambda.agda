@@ -884,3 +884,315 @@ Context-≃ =
 
 ---------------------------------------------------------
 -- Lookup judgment
+
+-- We have two forms of judgment. The first is written
+
+-- Γ ∋ x ⦂ A
+
+-- and indicates in context Γ that variable x has type A. It is called lookup. For example,
+
+--     ∅ , "s" ⦂ `ℕ ⇒ `ℕ , "z" ⦂ `ℕ ∋ "z" ⦂ `ℕ
+--     ∅ , "s" ⦂ `ℕ ⇒ `ℕ , "z" ⦂ `ℕ ∋ "s" ⦂ `ℕ ⇒ `ℕ
+
+-- give us the types associated with variables "z" and "s", respectively.
+-- The symbol ∋ (pronounced “ni”, for “in” backwards) is chosen because checking
+-- that Γ ∋ x ⦂ A is analogous to checking whether x ⦂ A appears in a list corresponding to Γ.
+
+-- If two variables in a context have the same name, then lookup should return the most recently bound variable,
+-- which shadows the other variables. For example,
+
+--     ∅ , "x" ⦂ `ℕ ⇒ `ℕ , "x" ⦂ `ℕ ∋ "x" ⦂ `ℕ.
+
+-- Here "x" ⦂ `ℕ ⇒ `ℕ is shadowed by "x" ⦂ `ℕ.
+
+-- Lookup is formalised as follows:
+
+infix  4  _∋_⦂_ -- ∋ \ni
+
+data _∋_⦂_ : Context → Id → Type → Set where
+
+  Z : ∀ {Γ x A}
+      ------------------
+    → Γ , x ⦂ A ∋ x ⦂ A
+
+  S : ∀ {Γ x y A B}
+    → x ≢ y
+    → Γ ∋ x ⦂ A
+      ------------------
+    → Γ , y ⦂ B ∋ x ⦂ A
+
+-- The constructors Z and S correspond roughly to the constructors here and there for the element-of relation _∈_ on lists.
+--
+-- Constructor S takes an additional parameter, which ensures that when we look up a variable
+-- that it is not shadowed by another variable with the same name to its left in the list.
+
+-- It can be rather tedious to use the S constructor, as you have to provide proofs that x ≢ y each time. For example:
+
+_ : ∅ , "x" ⦂ `ℕ ⇒ `ℕ , "y" ⦂ `ℕ , "z" ⦂ `ℕ ∋ "x" ⦂ `ℕ ⇒ `ℕ
+_ = S (λ()) (S (λ()) Z)
+
+-- Instead, we’ll use a “smart constructor”, which uses proof by reflection to check the inequality while type checking:
+
+S′ : ∀ {Γ x y A B}
+   → {x≢y : False (x ≟ y)}
+   → Γ ∋ x ⦂ A
+     ------------------
+   → Γ , y ⦂ B ∋ x ⦂ A
+
+S′ {x≢y = x≢y} x = S (toWitnessFalse x≢y) x
+
+-------------------------------
+-- Typing judgment
+
+-- The second judgment is written
+
+-- Γ ⊢ M ⦂ A
+
+-- and indicates in context Γ that term M has type A. Context Γ provides types for all the free variables in M. For example:
+
+--     ∅ , "s" ⦂ `ℕ ⇒ `ℕ , "z" ⦂ `ℕ ⊢ ` "z" ⦂ `ℕ
+--     ∅ , "s" ⦂ `ℕ ⇒ `ℕ , "z" ⦂ `ℕ ⊢ ` "s" ⦂ `ℕ ⇒ `ℕ
+--     ∅ , "s" ⦂ `ℕ ⇒ `ℕ , "z" ⦂ `ℕ ⊢ ` "s" · ` "z" ⦂  `ℕ
+--     ∅ , "s" ⦂ `ℕ ⇒ `ℕ , "z" ⦂ `ℕ ⊢ ` "s" · (` "s" · ` "z") ⦂  `ℕ
+--     ∅ , "s" ⦂ `ℕ ⇒ `ℕ ⊢ ƛ "z" ⇒ ` "s" · (` "s" · ` "z") ⦂  `ℕ ⇒ `ℕ
+--     ∅ ⊢ ƛ "s" ⇒ ƛ "z" ⇒ ` "s" · (` "s" · ` "z") ⦂  (`ℕ ⇒ `ℕ) ⇒ `ℕ ⇒ `ℕ
+
+-- Typing is formalised as follows:
+
+infix  4  _⊢_⦂_ -- ⊢ \vdash
+
+data _⊢_⦂_ : Context → Term → Type → Set where
+
+  -- Axiom
+  ⊢` : ∀ {Γ x A}
+    → Γ ∋ x ⦂ A
+      -----------
+    → Γ ⊢ ` x ⦂ A
+
+  -- ⇒-I
+  ⊢ƛ : ∀ {Γ x N A B}
+    → Γ , x ⦂ A ⊢ N ⦂ B
+      -------------------
+    → Γ ⊢ ƛ x ⇒ N ⦂ A ⇒ B
+
+  -- ⇒-E
+  _·_ : ∀ {Γ L M A B}
+    → Γ ⊢ L ⦂ A ⇒ B
+    → Γ ⊢ M ⦂ A
+      -------------
+    → Γ ⊢ L · M ⦂ B
+
+  -- ℕ-I₁
+  ⊢zero : ∀ {Γ}
+      --------------
+    → Γ ⊢ `zero ⦂ `ℕ
+
+  -- ℕ-I₂
+  ⊢suc : ∀ {Γ M}
+    → Γ ⊢ M ⦂ `ℕ
+      ---------------
+    → Γ ⊢ `suc M ⦂ `ℕ
+
+  -- ℕ-E
+  ⊢case : ∀ {Γ L M x N A}
+    → Γ ⊢ L ⦂ `ℕ
+    → Γ ⊢ M ⦂ A
+    → Γ , x ⦂ `ℕ ⊢ N ⦂ A
+      -------------------------------------
+    → Γ ⊢ case L [zero⇒ M |suc x ⇒ N ] ⦂ A
+
+  ⊢μ : ∀ {Γ x M A}
+    → Γ , x ⦂ A ⊢ M ⦂ A
+      -----------------
+    → Γ ⊢ μ x ⇒ M ⦂ A
+
+-- Each type rule is named after the constructor for the corresponding term.
+
+-- Most of the rules have a second name, derived from a convention in logic,
+-- whereby the rule is named after the type connective that it concerns;
+-- rules to introduce and to eliminate each connective are labeled -I and -E, respectively.
+
+-- Note also the three places (in ⊢ƛ, ⊢case, and ⊢μ) where the context is extended with x and an appropriate type,
+-- corresponding to the three places where a bound variable is introduced.
+
+-- The rules are deterministic, in that at most one rule applies to every term.
+
+----------------------------------------
+-- Example type derivations
+
+-- Type derivations correspond to trees. In informal notation, here is a type derivation for the Church numeral two,
+
+{-
+                        ∋s                     ∋z
+                        ------------------ ⊢`  -------------- ⊢`
+∋s                      Γ₂ ⊢ ` "s" ⦂ A ⇒ A     Γ₂ ⊢ ` "z" ⦂ A
+------------------ ⊢`   ------------------------------------- _·_
+Γ₂ ⊢ ` "s" ⦂ A ⇒ A      Γ₂ ⊢ ` "s" · ` "z" ⦂ A
+---------------------------------------------- _·_
+Γ₂ ⊢ ` "s" · (` "s" · ` "z") ⦂ A
+-------------------------------------------- ⊢ƛ
+Γ₁ ⊢ ƛ "z" ⇒ ` "s" · (` "s" · ` "z") ⦂ A ⇒ A
+------------------------------------------------------------- ⊢ƛ
+Γ ⊢ ƛ "s" ⇒ ƛ "z" ⇒ ` "s" · (` "s" · ` "z") ⦂ (A ⇒ A) ⇒ A ⇒ A
+
+
+where ∋s and ∋z abbreviate the two derivations,
+
+             ---------------- Z
+"s" ≢ "z"    Γ₁ ∋ "s" ⦂ A ⇒ A
+----------------------------- S       ------------- Z
+Γ₂ ∋ "s" ⦂ A ⇒ A                       Γ₂ ∋ "z" ⦂ A
+
+and where Γ₁ = Γ , "s" ⦂ A ⇒ A and Γ₂ = Γ , "s" ⦂ A ⇒ A , "z" ⦂ A.
+
+The typing derivation is valid for any Γ and A, for instance, we might take Γ to be ∅ and A to be `ℕ.
+-}
+
+-- Here is the above typing derivation formalised in Agda:
+
+Ch : Type → Type
+Ch A = (A ⇒ A) ⇒ A ⇒ A
+
+⊢twoᶜ : ∀ {Γ A} → Γ ⊢ twoᶜ ⦂ Ch A
+⊢twoᶜ = ⊢ƛ (⊢ƛ (⊢` ∋s · (⊢` ∋s · ⊢` ∋z)))
+  where
+  ∋s = S′ Z
+  ∋z = Z
+
+--  Here are the typings corresponding to computing two plus two:
+
+⊢two : ∀ {Γ} → Γ ⊢ two ⦂ `ℕ
+⊢two = ⊢suc (⊢suc ⊢zero)
+
+⊢plus : ∀ {Γ} → Γ ⊢ plus ⦂ `ℕ ⇒ `ℕ ⇒ `ℕ
+⊢plus = ⊢μ (⊢ƛ (⊢ƛ (⊢case (⊢` ∋m) (⊢` ∋n)
+         (⊢suc (⊢` ∋+ · ⊢` ∋m′ · ⊢` ∋n′)))))
+  where
+  -- S′ marks the position in the context
+  --  ⊢μ, ⊢ƛ, ⊢case add new position
+  ∋+  = S′ (S′ (S′ Z))
+  ∋m  = S′ Z
+  ∋n  = Z
+  ∋m′ = Z
+  ∋n′ = S′ Z
+
+⊢2+2 : ∅ ⊢ plus · two · two ⦂ `ℕ
+⊢2+2 = ⊢plus · ⊢two · ⊢two
+
+-------------------------------------
+-- Interaction with Agda
+
+{-
+Construction of a type derivation may be done interactively. Start with the declaration:
+
+  ⊢sucᶜ : ∅ ⊢ sucᶜ ⦂ `ℕ ⇒ `ℕ
+  ⊢sucᶜ = ?
+
+Typing C-c C-l causes Agda to create a hole and tell us its expected type:
+
+  ⊢sucᶜ = { }0
+  ?0 : ∅ ⊢ sucᶜ ⦂ `ℕ ⇒ `ℕ
+
+Now we fill in the hole by typing C-c C-r.
+Agda observes that the outermost term in sucᶜ is ƛ, which is typed using ⊢ƛ.
+The ⊢ƛ rule in turn takes one argument, which Agda leaves as a hole:
+
+  ⊢sucᶜ = ⊢ƛ { }1
+  ?1 : ∅ , "n" ⦂ `ℕ ⊢ `suc ` "n" ⦂ `ℕ
+
+We can fill in the hole by typing C-c C-r again:
+
+  ⊢sucᶜ = ⊢ƛ (⊢suc { }2)
+  ?2 : ∅ , "n" ⦂ `ℕ ⊢ ` "n" ⦂ `ℕ
+
+And again:
+
+  ⊢sucᶜ = ⊢ƛ (⊢suc (⊢` { }3))
+  ?3 : ∅ , "n" ⦂ `ℕ ∋ "n" ⦂ `ℕ
+
+A further attempt with C-c C-r yields the message:
+
+  Don't know which constructor to introduce of Z or S
+
+We can fill in Z by hand. If we type C-c C-space, Agda will confirm we are done:
+
+  ⊢sucᶜ = ⊢ƛ (⊢suc (⊢` Z))
+
+The entire process can be automated using Agsy, invoked with C-c C-a.
+Chapter Inference will show how to use Agda to compute type derivations directly.
+-}
+
+⊢sucᶜ : ∅ ⊢ sucᶜ ⦂ `ℕ ⇒ `ℕ
+⊢sucᶜ = ⊢ƛ (⊢suc (⊢` Z))
+
+--------------------------------------
+-- Lookup is injective
+
+-- The lookup relation Γ ∋ x ⦂ A is injective, in that for each Γ and x there is at most one A such that the judgment holds:
+
+∋-injective : ∀ {Γ x A B} → Γ ∋ x ⦂ A → Γ ∋ x ⦂ B → A ≡ B
+∋-injective Z        Z          =  refl
+∋-injective Z        (S x≢ _)   =  ⊥-elim (x≢ refl)
+∋-injective (S x≢ _) Z          =  ⊥-elim (x≢ refl)
+∋-injective (S _ ∋x) (S _ ∋x′)  =  ∋-injective ∋x ∋x′
+
+-- The typing relation Γ ⊢ M ⦂ A is not injective.
+--
+-- For example, in any Γ the term ƛ "x" ⇒ ` "x" has type A ⇒ A for any type A.
+
+------------------------------------------
+-- Non-examples
+
+-- We can also show that terms are not typeable.
+--
+-- For example, here is a formal proof that it is not possible to type the term `zero · `suc `zero.
+-- It cannot be typed, because doing so requires that the first term in the application is both a natural and a function:
+
+nope₁ : ∀ {A} → ¬ (∅ ⊢ `zero · `suc `zero ⦂ A)
+nope₁ (() · _)
+
+-- As a second example, here is a formal proof that it is not possible to type ƛ "x" ⇒ ` "x" · ` "x".
+-- It cannot be typed, because doing so requires types A and B such that A ⇒ B ≡ A:
+
+nope₂ : ∀ {A} → ¬ (∅ ⊢ ƛ "x" ⇒ ` "x" · ` "x" ⦂ A)
+nope₂ (⊢ƛ (⊢` ∋x · ⊢` ∋x′))  =  contradiction (∋-injective ∋x ∋x′)
+  where
+  contradiction : ∀ {A B} → ¬ (A ⇒ B ≡ A)
+  contradiction ()
+
+------------
+-- Quiz
+
+
+_ : ∅ , "y" ⦂ `ℕ ⇒ `ℕ , "x" ⦂ `ℕ ⊢ ` "y" · ` "x" ⦂ `ℕ
+_ = (⊢` (S′ Z)) · (⊢` Z)
+
+-- ∅ , "y" ⦂ `ℕ ⇒ `ℕ , "x" ⦂ `ℕ ⊢ ` "x" · ` "y" ⦂ A
+-- No such type A.
+
+_ : ∅ , "y" ⦂ `ℕ ⇒ `ℕ ⊢ ƛ "x" ⇒ ` "y" · ` "x" ⦂ `ℕ ⇒ `ℕ
+_ = ⊢ƛ (⊢` (S′ Z) · ⊢` Z)
+
+
+-- Exercises
+
+⊢mul : ∀ {Γ} → Γ ⊢ mul ⦂ `ℕ ⇒ `ℕ ⇒ `ℕ
+⊢mul = ⊢μ (⊢ƛ (⊢ƛ (⊢case (⊢` ∋m) ⊢zero
+         (⊢plus · ⊢` ∋n · (⊢` ∋* · ⊢` ∋m′ · ⊢` ∋n)))))
+  where
+  ∋m  = S′ Z
+  ∋m′ = Z
+  ∋n  = S′ Z
+  ∋*  = S′ (S′ (S′ Z))
+
+Church : Type → Type
+Church A = (A ⇒ A) ⇒ (A ⇒ A)
+
+-- ⊢mulᶜ : ∀ {Γ A} → Γ ⊢ mulᶜ ⦂ Church A ⇒ Church A ⇒ Church A
+-- ⊢mulᶜ = ⊢ƛ (⊢ƛ (⊢ƛ (⊢ƛ (⊢` ∋m · ⊢ƛ (∋n · ∋s · ∋x) · ⊢` ∋z))))
+--   where
+--   ∋m  = S′ (S′ (S′ Z))
+--   ∋z  = Z
+--   ∋n  = S′ (S′ (S′ Z))
+--   ∋s  = S′ (S′ Z)
+--   ∋x  = Z
