@@ -11,5 +11,8 @@ all: compile
 compile: $(SOURCES)
 	xargs $(AGDA) -v 2 $<
 
+html: $(SOURCES)
+	xargs $(AGDA) --html --html-dir=html $<
+
 clean:
 	rm -f $(SOURCEDIR)/*.agdai
